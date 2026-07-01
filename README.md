@@ -1,7 +1,7 @@
 Abonnement à des animés en cours de diffusion : détection automatique de la
 sortie d'un épisode (AniList), recherche du torrent correspondant (Nyaa.si),
 ajout à Premiumize, et exposition d'un lien de lecture direct pour un client
-externe (Kodi).
+externe (Kodi). Ce projet est pour but educationnel uniquement et n'a pas vocation à être utilisé, particulièrement pas de façon illégale.
 
 ## Sommaire
 - [Contexte & objectifs](#contexte--objectifs)
