@@ -127,7 +127,7 @@ dist
 
 # pnpm
 .pnpm-store
-
+pnpm-lock.yaml
 # yarn v3
 .pnp.*
 .yarn/*
@@ -141,3 +141,16 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# Turborepo
+.turbo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Éditeurs
+.idea
+*.swp
+
+
