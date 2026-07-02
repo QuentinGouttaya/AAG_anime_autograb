@@ -1,7 +1,17 @@
+# Anime Auto-Grabber
+
 Abonnement à des animés en cours de diffusion : détection automatique de la
 sortie d'un épisode (AniList), recherche du torrent correspondant (Nyaa.si),
 ajout à Premiumize, et exposition d'un lien de lecture direct pour un client
-externe (Kodi). Ce projet est pour but educationnel uniquement et n'a pas vocation à être utilisé, particulièrement pas de façon illégale.
+externe (Kodi).
+
+> ⚠️ **Disclaimer** : Ce projet est développé à des fins **éducatives
+> uniquement** (apprentissage d'architecture N-tiers, TypeScript, monorepo,
+> CI/CD). Il n'a pas vocation à être utilisé en production, et encore moins
+> de façon illégale. L'auteur décline toute responsabilité en cas de mauvais
+> usage, notamment concernant le téléchargement de contenu protégé par le
+> droit d'auteur. Utilisez ce code en conformité avec les lois applicables
+> dans votre juridiction.
 
 ## Sommaire
 - [Contexte & objectifs](#contexte--objectifs)
@@ -110,11 +120,11 @@ anime-auto-grabber/
 
 ### Subscriptions
 ```
-POST   /subscriptions              → create
-GET    /subscriptions              → list
-GET    /subscriptions/:id          → getById
+POST   /subscriptions                  → create
+GET    /subscriptions                  → list
+GET    /subscriptions/:id              → getById
 GET    /subscriptions/:id/next-episode → getNextAiringEpisode
-DELETE /subscriptions/:id          → remove
+DELETE /subscriptions/:id              → remove
 ```
 
 ### Episodes
@@ -172,3 +182,7 @@ ESLint flat config (`eslint.config.mjs`) + `typescript-eslint` + Prettier intég
 
 - **CI** (`ci.yml`) : install → lint → build → test, déclenché sur push/PR, limité aux packages affectés (`turbo --filter=...[HEAD^1]`)
 - **CD** (`cd.yml`) : build + push d'images Docker multi-stage vers GHCR, déclenché sur push vers `main` uniquement
+
+## Licence
+
+Projet éducatif — usage personnel uniquement. Aucune licence de distribution n'est accordée pour un usage commercial ou de production.
