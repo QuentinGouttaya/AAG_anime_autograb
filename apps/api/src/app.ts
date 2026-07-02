@@ -6,3 +6,7 @@ app.use(express.json());
 app.get("/health", (req, res) => {
   res.json({ status: "ok" });
 });
+
+app.get("/subscriptions", (req, res) => {
+  res.json({ status: "received" });
+})
