@@ -1,3 +1,3 @@
-export * from "./serie";
-export * from "./subscription";
-export * from "./episode";
+export * from "./serie.js";
+export * from "./subscription.js";
+export * from "./episode.js";

@@ -2,12 +2,18 @@
   "name": "@aag/domain",
   "version": "1.0.0",
   "description": "",
-  "main": "src/index.ts",
+  "type": "module",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "tsc",
+    "test": "echo \"no tests yet\" && exit 0"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "module"
+  "devDependencies": {
+    "typescript": "^5.9.0"
+  }
 }

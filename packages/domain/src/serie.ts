@@ -1,8 +1,8 @@
-import type { Episode } from "./episode";
-export type Series = {
+import type { Episode } from "./episode.js";
+export type Serie = {
   id: number;
   anilistId: number;
   canonicalTitle: string;
 };
 
-export type SeriesWithEpisodes = Series & { episodes: Episode[] };
+export type SerieWithEpisodes = Serie & { episodes: Episode[] };
