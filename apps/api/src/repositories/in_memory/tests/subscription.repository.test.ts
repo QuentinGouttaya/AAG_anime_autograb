@@ -1,7 +1,7 @@
 // repositories/in_memory/subscription.repository.test.ts
 import { describe, it, expect, beforeEach } from 'vitest';
 import { InMemorySubscriptionRepository } from '../subscription.repository.js';
-import type { Subscription } from '@aag/domain';
+import type { Subscription } from '../../../models/subscription.js';
 
 describe('InMemorySubscriptionRepository', () => {
   let repo: InMemorySubscriptionRepository;

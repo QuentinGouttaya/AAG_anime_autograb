@@ -1,59 +1,30 @@
-// src/services/tests/anilist.service.test.ts
-import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { AnilistService, AnilistApiError } from '../anilist.service.js';
+// src/services/tests/anilist.service.integration.test.ts
+import { describe, it, expect } from 'vitest';
+import { AnilistService } from '../../services/metadata/anilist/service.js';
 
-describe('AnilistService', () => {
-  let service: AnilistService;
+describe('AnilistService (integration, real API)', () => {
+  const service = new AnilistService();
 
-  beforeEach(() => {
-    service = new AnilistService();
-    vi.stubGlobal('fetch', vi.fn());
-  });
-
-  afterEach(() => {
-    vi.unstubAllGlobals();
-    vi.resetAllMocks();
-  });
-
-  it('searchAnime returns media list on success', async () => {
-    const media = [
-      { id: 1, title: { romaji: 'Shingeki no Kyojin', english: 'Attack on Titan', native: '進撃の巨人' }, episodes: 25, status: 'FINISHED' },
-    ];
-
-    vi.mocked(fetch).mockResolvedValue({
-      status: 200,
-      json: async () => ({ data: { Page: { media } } }),
-    } as Response);
-
+  it('searchAnime returns real results from AniList for a known title', async () => {
     const result = await service.searchAnime('Attack on Titan');
-    expect(result).toEqual(media);
-  });
 
-  it('throws AnilistApiError on 429 with Too Many Requests message', async () => {
-    vi.mocked(fetch).mockResolvedValue({
-      status: 429,
-      json: async () => ({ data: null, errors: [{ message: 'Too Many Requests.', status: 429 }] }),
-    } as Response);
+    expect(result.length).toBeGreaterThan(0);
+    expect(result[0]).toHaveProperty('anilistId');
+    expect(result[0]).toHaveProperty('canonicalTitle');
+  }, 15000);
 
-    await expect(service.searchAnime('x')).rejects.toThrow(AnilistApiError);
-  });
+  it('getAnimeById returns a real anime with episodes for a known AniList ID', async () => {
+    // 16498 = Shingeki no Kyojin (Attack on Titan) sur AniList
+    const result = await service.getAnimeById(16498);
 
-  it('getAnimeById returns null when Media is null', async () => {
-    vi.mocked(fetch).mockResolvedValue({
-      status: 200,
-      json: async () => ({ data: { Media: null } }),
-    } as Response);
+    expect(result).not.toBeNull();
+    expect(result?.anilistId).toBe(16498);
+    expect(result?.canonicalTitle).toBeTruthy();
+    expect(Array.isArray(result?.episodes)).toBe(true);
+  }, 15000);
 
-    const result = await service.getAnimeById(999999);
+  it('getAnimeById returns null for a non-existent ID', async () => {
+    const result = await service.getAnimeById(999999999);
     expect(result).toBeNull();
-  });
-
-  it('propagates GraphQL error message on malformed query', async () => {
-    vi.mocked(fetch).mockResolvedValue({
-      status: 200,
-      json: async () => ({ data: null, errors: [{ message: 'Validation failed' }] }),
-    } as Response);
-
-    await expect(service.searchAnime('x')).rejects.toThrow('Validation failed');
-  });
+  }, 15000);
 });

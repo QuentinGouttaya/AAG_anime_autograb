@@ -1,4 +1,4 @@
-import type { Serie } from '@aag/domain';
+import type { Serie } from '../../models/serie.js';
 import type { SerieRepository } from '../serie.repository.js';
 
 export class InMemorySerieRepository implements SerieRepository {

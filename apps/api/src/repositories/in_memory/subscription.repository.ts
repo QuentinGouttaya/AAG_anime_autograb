@@ -1,4 +1,4 @@
-import type { Subscription } from '@aag/domain';
+import type { Subscription } from '../../models/subscription.js';
 import type { SubscriptionRepository } from '../subscription.repository.js';
 
 export class InMemorySubscriptionRepository implements SubscriptionRepository {

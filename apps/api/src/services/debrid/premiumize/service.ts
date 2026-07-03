@@ -1,29 +1,8 @@
-// services/premiumize.service.ts
-interface PremiumizeConfig {
-  apiKey: string;
-  baseUrl?: string;
-}
+import type { DebridProvider, DebridLinkItem } from '../debrid.service.js';
+import { PremiumizeApiError } from './error.js';
+import type { PremiumizeConfig, PremiumizeDirectDlResponse } from './types.js';
 
-interface PremiumizeDdlItem {
-  path: string;
-  size: number;
-  link: string;
-}
-
-interface PremiumizeDirectDlResponse {
-  status: 'success' | 'error';
-  content?: PremiumizeDdlItem[];
-  message?: string;
-  code?: string;
-}
-
-export class PremiumizeApiError extends Error {
-  constructor(public readonly code: string, message: string) {
-    super(`Premiumize API error [${code}]: ${message}`);
-  }
-}
-
-export class PremiumizeService {
+export class PremiumizeService implements DebridProvider {
   private readonly apiKey: string;
   private readonly baseUrl: string;
 
@@ -36,8 +15,8 @@ export class PremiumizeService {
     return { Authorization: `Bearer ${this.apiKey}` };
   }
 
-  async getDirectDownloadLink(magnetOrTorrentUrl: string): Promise<PremiumizeDdlItem[]> {
-    const body = new URLSearchParams({ src: magnetOrTorrentUrl });
+  async getDirectDownloadLink(source: string): Promise<DebridLinkItem[]> {
+    const body = new URLSearchParams({ src: source });
 
     const response = await fetch(`${this.baseUrl}/transfer/directdl`, {
       method: 'POST',
@@ -47,6 +26,10 @@ export class PremiumizeService {
       },
       body,
     });
+
+    if (response.status === 429 || response.status >= 500) {
+      throw new PremiumizeApiError('http_error', `HTTP ${response.status}`, true);
+    }
 
     const data = (await response.json()) as PremiumizeDirectDlResponse;
 

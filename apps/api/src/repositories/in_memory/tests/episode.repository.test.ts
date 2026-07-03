@@ -1,7 +1,7 @@
 // repositories/in_memory/episode.repository.test.ts
 import { describe, it, expect, beforeEach } from 'vitest';
 import { InMemoryEpisodeRepository } from '../episode.repository.js';
-import type { Episode } from '@aag/domain';
+import type { Episode } from '../../../models/episode.js';
 
 describe('InMemoryEpisodeRepository', () => {
   let repo: InMemoryEpisodeRepository;

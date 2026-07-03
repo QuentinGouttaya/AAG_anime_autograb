@@ -8,7 +8,7 @@ import { InMemorySubscriptionRepository } from '../repositories/in_memory/subscr
 import { InMemorySerieRepository } from '../repositories/in_memory/serie.repository.js';
 import { EpisodeService } from '../services/episode.service.js';
 import { PremiumizeService } from '../services/premiumize.service.js';
-import { AnilistService } from '../services/anilist.service.js';
+import { AnilistService } from '../services/metadata/anilist/service.js';
 import { SubscriptionService } from '../services/subscription.service.js';
 import { SubscriptionController } from '../controllers/subscription.controller.js';
 import { EpisodeController } from '../controllers/episode.controller.js';

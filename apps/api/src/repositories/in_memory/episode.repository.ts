@@ -1,5 +1,5 @@
 // repositories/in_memory/episode.repository.ts
-import type { Episode, EpisodeStatus } from '@aag/domain';
+import type { Episode, EpisodeStatus } from '../../models/episode.js';
 import type { EpisodeRepository } from '../episode.repository.js';
 
 export class InMemoryEpisodeRepository implements EpisodeRepository {
