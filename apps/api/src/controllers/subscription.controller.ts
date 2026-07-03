@@ -11,7 +11,10 @@ export class SubscriptionController {
   };
 
   getById = async (req: Request, res: Response): Promise<void> => {
-    const id = Number(req.params.id);
+    let id = req.params.id;
+    if (isNaN(Number(id))) {
+      throw new Error('Invalid episode id');
+    }
     const subscription = await this.subscriptionService.getById(id);
 
     if (!subscription) {
@@ -28,7 +31,11 @@ export class SubscriptionController {
   };
 
   remove = async (req: Request, res: Response): Promise<void> => {
-    const id = Number(req.params.id);
+    let id = req.params.id;
+    if (isNaN(Number(id))) {
+      throw new Error('Invalid episode id');
+    }
+
     await this.subscriptionService.delete(id);
     res.status(204).send();
   };

@@ -15,7 +15,10 @@ export class EpisodeController {
   };
 
   getDetails = async (req: Request, res: Response): Promise<void> => {
-    const id = Number(req.params.id);
+    let id = req.params.id;
+    if (isNaN(Number(id))) {
+      throw new Error('Invalid episode id');
+    }
     const episode = await this.episodeService.getDetails(id);
 
     if (!episode) {
@@ -27,7 +30,11 @@ export class EpisodeController {
   };
 
   resolveDownloadLink = async (req: Request, res: Response): Promise<void> => {
-    const id = Number(req.params.id);
+    let id = req.params.id;
+    if (isNaN(Number(id))) {
+      throw new Error('Invalid episode id');
+    }
+
     const { magnetOrTorrentUrl } = req.body;
 
     const episode = await this.episodeService.resolveDownloadLink(id, magnetOrTorrentUrl);
