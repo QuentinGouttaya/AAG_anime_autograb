@@ -1,4 +1,4 @@
-import type { Episode, EpisodeStatus } from '@aag/domain';
+import type { Episode, EpisodeStatus } from '../models/episode.js';
 
 export interface EpisodeRepository {
   findAll(): Promise<Episode[]>;

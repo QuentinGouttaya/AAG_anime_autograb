@@ -1,4 +1,4 @@
-import type { Subscription } from '@aag/domain';
+import type { Subscription } from '../models/subscription.js';
 
 export interface SubscriptionRepository {
   findAll(): Promise<Subscription[]>;

@@ -1,4 +1,4 @@
-import type { Serie } from '@aag/domain';
+import type { Serie } from '../models/serie.js';
 
 export interface SerieRepository {
   findById(id: number): Promise<Serie | null>;
