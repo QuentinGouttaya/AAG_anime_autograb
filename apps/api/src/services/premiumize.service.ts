@@ -1,8 +1,7 @@
 // services/premiumize.service.ts
-
 interface PremiumizeConfig {
   apiKey: string;
-  baseUrl?: string; // défaut: https://www.premiumize.me/api
+  baseUrl?: string;
 }
 
 interface PremiumizeDdlItem {
@@ -15,6 +14,13 @@ interface PremiumizeDirectDlResponse {
   status: 'success' | 'error';
   content?: PremiumizeDdlItem[];
   message?: string;
+  code?: string;
+}
+
+export class PremiumizeApiError extends Error {
+  constructor(public readonly code: string, message: string) {
+    super(`Premiumize API error [${code}]: ${message}`);
+  }
 }
 
 export class PremiumizeService {
@@ -26,22 +32,26 @@ export class PremiumizeService {
     this.baseUrl = config.baseUrl ?? 'https://www.premiumize.me/api';
   }
 
-  async getDirectDownloadLink(magnetOrTorrentUrl: string): Promise<PremiumizeDdlItem[]> {
-    const url = new URL(`${this.baseUrl}/transfer/directdl`);
-    url.searchParams.set('apikey', this.apiKey);
+  private authHeaders() {
+    return { Authorization: `Bearer ${this.apiKey}` };
+  }
 
+  async getDirectDownloadLink(magnetOrTorrentUrl: string): Promise<PremiumizeDdlItem[]> {
     const body = new URLSearchParams({ src: magnetOrTorrentUrl });
 
-    const response = await fetch(url, {
+    const response = await fetch(`${this.baseUrl}/transfer/directdl`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      headers: {
+        ...this.authHeaders(),
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
       body,
     });
 
     const data = (await response.json()) as PremiumizeDirectDlResponse;
 
     if (data.status !== 'success' || !data.content) {
-      throw new Error(data.message ?? 'Premiumize directdl failed');
+      throw new PremiumizeApiError(data.code ?? 'unknown_error', data.message ?? 'directdl failed');
     }
 
     return data.content;

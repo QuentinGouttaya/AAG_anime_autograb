@@ -1,4 +1,22 @@
 services:
+  postgres:
+    image: postgres:18.4
+    container_name: aag-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: aag
+      POSTGRES_PASSWORD: aag
+      POSTGRES_DB: aag
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aag -d aag"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
   redis:
     image: redis:8.8-alpine
     container_name: aag-redis
@@ -13,6 +31,8 @@ services:
       timeout: 3s
       retries: 5
 
+
+
   api:
     build:
       context: .
@@ -20,6 +40,8 @@ services:
     container_name: aag-api
     restart: unless-stopped
     depends_on:
+      postgres:
+        condition: service_healthy
       redis:
         condition: service_healthy
     ports:
@@ -27,9 +49,9 @@ services:
     environment:
       PORT: 3000
       REDIS_URL: redis://redis:6379
+      DATABASE_URL: postgres://aag:aag@postgres:5432/aag
       PREMIUMIZE_API_KEY: ${PREMIUMIZE_API_KEY}
-    env_file:
-      - ./apps/api/.env
 
 volumes:
   redis-data:
+  postgres-data:

@@ -26,6 +26,18 @@
       "outputs": [
         "coverage/**"
       ]
+    },
+    "migrate:up": {
+      "cache": false,
+      "dependsOn": [
+        "^build"
+      ]
+    },
+    "migrate:down": {
+      "cache": false
+    },
+    "migrate:create": {
+      "cache": false
     }
   }
 }

@@ -5,19 +5,25 @@
   "private": true,
   "dependencies": {
     "@aag/domain": "workspace:*",
-    "express": "^5.2.1"
+    "express": "^5.2.1",
+    "pg": "^8.22.0"
   },
   "devDependencies": {
-    "typescript": "^5.9.0",
     "@types/express": "^5.0.0",
     "@types/node": "^24.0.0",
+    "@types/pg": "^8.20.0",
+    "node-pg-migrate": "^8.0.4",
     "tsx": "^4.19.0",
+    "typescript": "^5.9.0",
     "vitest": "^4.1.9"
   },
   "scripts": {
     "dev": "tsx watch src/main.ts",
     "build": "tsc",
     "start": "node dist/main.js",
-    "test": "vitest run"
+    "test": "vitest run",
+    "migrate:up": "node-pg-migrate up",
+    "migrate:down": "node-pg-migrate down",
+    "migrate:create": "node-pg-migrate create --migration-file-language ts"
   }
 }

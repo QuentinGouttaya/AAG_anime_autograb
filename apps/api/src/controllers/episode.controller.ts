@@ -1,42 +1,40 @@
+// src/controllers/episode.controller.ts
 import type { Request, Response } from 'express';
 import type { EpisodeService } from '../services/episode.service.js';
 
 export class EpisodeController {
   constructor(private readonly episodeService: EpisodeService) { }
 
-  list = async (req: Request, res: Response): Promise<void> => {
+  list = async (_req: Request, res: Response) => {
     const episodes = await this.episodeService.list();
     res.json(episodes);
   };
 
-  listAvailableFiles = async (req: Request, res: Response): Promise<void> => {
+  listAvailableFiles = async (_req: Request, res: Response) => {
     const episodes = await this.episodeService.listAvailableFiles();
     res.json(episodes);
   };
 
-  getDetails = async (req: Request, res: Response): Promise<void> => {
-    let id = req.params.id;
-    if (isNaN(Number(id))) {
-      throw new Error('Invalid episode id');
+  getDetails = async (req: Request, res: Response) => {
+    const id = Number(req.params.id);
+    if (Number.isNaN(id)) {
+      return res.status(400).json({ message: 'Invalid episode id' });
     }
+
     const episode = await this.episodeService.getDetails(id);
-
     if (!episode) {
-      res.status(404).json({ error: 'Episode not found' });
-      return;
+      return res.status(404).json({ message: 'Episode not found' });
     }
-
     res.json(episode);
   };
 
-  resolveDownloadLink = async (req: Request, res: Response): Promise<void> => {
-    let id = req.params.id;
-    if (isNaN(Number(id))) {
-      throw new Error('Invalid episode id');
+  resolveDownloadLink = async (req: Request, res: Response) => {
+    const id = Number(req.params.id);
+    if (Number.isNaN(id)) {
+      return res.status(400).json({ message: 'Invalid episode id' });
     }
 
     const { magnetOrTorrentUrl } = req.body;
-
     const episode = await this.episodeService.resolveDownloadLink(id, magnetOrTorrentUrl);
     res.json(episode);
   };
