@@ -10,16 +10,22 @@ export class InMemorySerieRepository implements SerieRepository {
   }
 
   async findByAnilistId(anilistId: number): Promise<Serie | null> {
-    for (const series of this.items.values()) {
-      if (series.anilistId === anilistId) {
-        return series;
+    for (const serie of this.items.values()) {
+      if (serie.anilistId === anilistId) {
+        return serie;
       }
     }
     return null;
   }
 
-  async save(serie: Serie): Promise<void> {
+  async save(serie: Serie): Promise<Serie> {
     const id = serie.id || this.nextId++;
-    this.items.set(id, { ...serie, id });
+    const saved = { ...serie, id };
+    this.items.set(id, saved);
+    return saved;
+  }
+
+  async delete(id: number): Promise<void> {
+    this.items.delete(id);
   }
 }

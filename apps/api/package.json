@@ -4,14 +4,19 @@
   "main": "dist/main.js",
   "private": true,
   "dependencies": {
+    "bullmq": "^5.79.2",
+    "dotenv": "^16.4.5",
+    "drizzle-orm": "^0.45.2",
     "express": "^5.2.1",
+    "fast-xml-parser": "^5.9.3",
+    "ioredis": "^5.11.1",
     "pg": "^8.22.0"
   },
   "devDependencies": {
     "@types/express": "^5.0.0",
     "@types/node": "^24.0.0",
     "@types/pg": "^8.20.0",
-    "node-pg-migrate": "^8.0.4",
+    "drizzle-kit": "^0.31.10",
     "tsx": "^4.19.0",
     "typescript": "^5.9.0",
     "vitest": "^4.1.9"
@@ -20,10 +25,10 @@
     "dev": "tsx watch src/main.ts",
     "build": "tsc",
     "start": "node dist/main.js",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:studio": "drizzle-kit studio",
     "test": "vitest run",
-    "test:integration": "vitest run integration",
-    "migrate:up": "node-pg-migrate up",
-    "migrate:down": "node-pg-migrate down",
-    "migrate:create": "node-pg-migrate create --migration-file-language ts"
+    "test:integration": "vitest run integration --config vitest.integration.config.ts"
   }
 }

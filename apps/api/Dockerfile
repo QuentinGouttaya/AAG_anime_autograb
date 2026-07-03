@@ -7,7 +7,6 @@ WORKDIR /repo
 FROM base AS deps
 COPY pnpm-workspace.yaml pnpm-lock.yaml package.json turbo.json ./
 COPY apps/api/package.json apps/api/package.json
-COPY packages/domain/package.json packages/domain/package.json
 RUN pnpm install --frozen-lockfile --filter=@aag/api...
 
 # ---- build ----
@@ -23,7 +22,6 @@ RUN addgroup -S nodegrp && adduser -S nodeusr -G nodegrp
 
 COPY --from=build --chown=nodeusr:nodegrp /repo/apps/api/dist ./apps/api/dist
 COPY --from=build --chown=nodeusr:nodegrp /repo/apps/api/migrations ./apps/api/migrations
-COPY --from=build --chown=nodeusr:nodegrp /repo/packages/domain/dist ./packages/domain/dist
 COPY --from=build --chown=nodeusr:nodegrp /repo/node_modules ./node_modules
 COPY --from=build --chown=nodeusr:nodegrp /repo/apps/api/node_modules ./apps/api/node_modules
 COPY --from=build --chown=nodeusr:nodegrp /repo/package.json ./package.json

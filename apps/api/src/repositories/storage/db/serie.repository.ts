@@ -24,16 +24,20 @@ export class PostgresSerieRepository extends BaseRepository<typeof series> imple
     return row ? toSerie(row) : null;
   }
 
-  async save(serie: Serie): Promise<void> {
+  async save(serie: Serie): Promise<Serie> {
     if (serie.id === 0) {
-      await this.db.insert(series).values({ anilistId: serie.anilistId, canonicalTitle: serie.canonicalTitle });
-      return;
+      const [row] = await this.db
+        .insert(series)
+        .values({ anilistId: serie.anilistId, canonicalTitle: serie.canonicalTitle })
+        .returning();
+      return toSerie(row);
     }
-    await this.db
+
+    const [row] = await this.db
       .update(series)
       .set({ anilistId: serie.anilistId, canonicalTitle: serie.canonicalTitle })
-      .where(eq(series.id, serie.id));
+      .where(eq(series.id, serie.id))
+      .returning();
+    return toSerie(row);
   }
-
-
 }

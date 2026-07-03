@@ -1,3 +1,5 @@
+import type TrackedEpisode from './tracked_episode.js';
+import type Subscription from './subscription.js';
 export type EpisodeStatus = "pending" | "searching" | "found" | "added" | "ready" | "failed";
 
 export type SubscriptionEpisode = {

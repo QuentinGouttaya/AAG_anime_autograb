@@ -5,12 +5,12 @@ import { createApp } from './app.js';
 
 import { InMemorySubscriptionRepository } from './repositories/in_memory/subscription.repository.js';
 import { InMemorySerieRepository } from './repositories/in_memory/serie.repository.js';
-import { AnilistService } from './services/anilist.service.js';
+import { AnilistService } from './services/metadata/anilist/service.js';
 import { SubscriptionService } from './services/subscription.service.js';
 
 
 import { InMemoryEpisodeRepository } from './repositories/in_memory/episode.repository.js';
-import { PremiumizeService } from './services/premiumize.service.js';
+import { PremiumizeService } from './services/debrid/premiumize/service.js';
 import { EpisodeService } from './services/episode.service.js';
 import { EpisodeController } from './controllers/episode.controller.js';
 import { SubscriptionController } from './controllers/subscription.controller.js';

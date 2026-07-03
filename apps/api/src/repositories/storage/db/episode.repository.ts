@@ -2,7 +2,7 @@
 import { and, eq } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { subscriptionEpisodes } from './schema.js';
-import type { SubscriptionEpisode, SubscriptionEpisodeRepository, EpisodeStatus } from '../subscription-episode.repository.js';
+import type { SubscriptionEpisode, SubscriptionEpisodeRepository, EpisodeStatus } from './subscription_episode.repository.js';
 
 function toEntry(row: typeof subscriptionEpisodes.$inferSelect): SubscriptionEpisode {
   return {

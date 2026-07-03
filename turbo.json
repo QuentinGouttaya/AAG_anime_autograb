@@ -1,5 +1,10 @@
 {
   "$schema": "https://turbo.build/schema.json",
+  "globalEnv": [
+    "DATABASE_URL",
+    "REDIS_URL",
+    "PREMIUMIZE_API_KEY"
+  ],
   "tasks": {
     "build": {
       "dependsOn": [
@@ -30,17 +35,15 @@
     "test:integration": {
       "cache": false
     },
-    "migrate:up": {
+    "db:generate": {
+      "cache": false
+    },
+    "db:migrate": {
+      "cache": false
+    },
+    "db:studio": {
       "cache": false,
-      "dependsOn": [
-        "^build"
-      ]
-    },
-    "migrate:down": {
-      "cache": false
-    },
-    "migrate:create": {
-      "cache": false
+      "persistent": true
     }
   }
 }

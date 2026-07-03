@@ -9,10 +9,9 @@
     "dev": "turbo run dev",
     "lint": "turbo run lint",
     "test": "turbo run test",
-    "migrate:up": "turbo run migrate:up --filter=@aag/api",
-    "migrate:local": "DATABASE_URL=postgres://aag:aag@localhost:5432/aag pnpm --filter=@aag/api exec node-pg-migrate up -m apps/api/migrations",
-    "migrate:down": "turbo run migrate:down --filter=@aag/api",
-    "migrate:create": "turbo run migrate:create --filter=@aag/api -- "
+    "db:generate": "turbo run db:generate --filter=@aag/api",
+    "db:migrate": "turbo run db:migrate --filter=@aag/api",
+    "db:studio": "turbo run db:studio --filter=@aag/api"
   },
   "keywords": [],
   "author": "",
