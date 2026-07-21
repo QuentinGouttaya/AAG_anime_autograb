@@ -109,3 +109,159 @@ code {
   padding: 4px 8px;
   background: var(--code-bg);
 }
+
+.page {
+  padding: 24px;
+  text-align: left;
+}
+
+.toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.input {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-h);
+  font: inherit;
+}
+
+.sub-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 15px;
+}
+
+.sub-table th,
+.sub-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+
+.sub-table th.sortable {
+  cursor: pointer;
+  user-select: none;
+  color: var(--text-h);
+}
+
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 13px;
+}
+
+.badge-active {
+  background: var(--accent-bg);
+  color: var(--accent);
+  border: 1px solid var(--accent-border);
+}
+
+.badge-inactive {
+  background: var(--code-bg);
+  color: var(--text);
+}
+
+.btn-danger {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  border-radius: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+  font: inherit;
+}
+
+.btn-danger:hover {
+  border-color: #e5484d;
+  color: #e5484d;
+}
+
+.empty-state {
+  color: var(--text);
+  padding: 24px 0;
+  text-align: center;
+}
+
+.nav {
+  display: flex;
+  gap: 16px;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--border);
+}
+
+.nav a {
+  color: var(--text);
+  text-decoration: none;
+  font-size: 15px;
+}
+
+.nav a:hover {
+  color: var(--accent);
+}
+
+.season-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.season-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.season-title {
+  color: var(--text-h);
+  font-size: 15px;
+  min-height: 40px;
+}
+
+.sub-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sub-form-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-primary {
+  border: 1px solid var(--accent-border);
+  background: var(--accent-bg);
+  color: var(--accent);
+  border-radius: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+  font: inherit;
+}
+
+.btn-primary:hover {
+  background: var(--accent);
+  color: white;
+}
+
+.row-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.resolve-panel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 0;
+  flex-wrap: wrap;
+}

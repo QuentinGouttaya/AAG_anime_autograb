@@ -6,6 +6,9 @@ export function episodeRoutes(controller: EpisodeController): Router {
   router.get('/episodes/files', controller.listAvailableFiles); // avant /:id
   router.get('/episodes', controller.list);
   router.get('/episodes/:id', controller.getDetails);
-  router.post('/episodes/:id/resolve-link', controller.resolveDownloadLink);
+  router.post(
+    '/subscriptions/:subscriptionId/episodes/:episodeId/resolve-link',
+    controller.resolveDownloadLink,
+  );
   return router;
 }
