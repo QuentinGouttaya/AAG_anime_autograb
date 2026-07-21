@@ -1,48 +1,75 @@
-// storage/subscription-episode.repository.ts
-import { and, eq } from 'drizzle-orm';
+// src/repositories/storage/db/episode.repository.ts
+import { asc, eq } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { subscriptionEpisodes } from './schema.js';
-import type { SubscriptionEpisode, SubscriptionEpisodeRepository, EpisodeStatus } from './subscription_episode.repository.js';
 
-function toEntry(row: typeof subscriptionEpisodes.$inferSelect): SubscriptionEpisode {
+import type { Episode } from '../../../models/episode.js';
+import type { EpisodeRepository } from '../../episode.repository.js';
+
+import { episodes } from './schema.js';
+
+function toEpisode(row: typeof episodes.$inferSelect): Episode {
   return {
-    subscriptionId: row.subscriptionId,
-    episodeId: row.episodeId,
-    status: row.status as EpisodeStatus,
-    grabbedAt: row.grabbedAt ? row.grabbedAt.toISOString() : null,
+    id: row.id,
+    serieId: row.serieId,
+    episodeNumber: row.episodeNumber,
+    airedAt: row.airedAt,
   };
 }
 
-export class PostgresSubscriptionEpisodeRepository implements SubscriptionEpisodeRepository {
+export class PostgresEpisodeRepository implements EpisodeRepository {
   constructor(private readonly db: NodePgDatabase) { }
 
-  async findBySubscriptionId(subscriptionId: number): Promise<SubscriptionEpisode[]> {
+  async findAll(): Promise<Episode[]> {
     const rows = await this.db
       .select()
-      .from(subscriptionEpisodes)
-      .where(eq(subscriptionEpisodes.subscriptionId, subscriptionId));
-    return rows.map(toEntry);
+      .from(episodes)
+      .orderBy(asc(episodes.serieId), asc(episodes.episodeNumber));
+
+    return rows.map(toEpisode);
   }
 
-  async findByStatus(status: EpisodeStatus): Promise<SubscriptionEpisode[]> {
-    const rows = await this.db.select().from(subscriptionEpisodes).where(eq(subscriptionEpisodes.status, status));
-    return rows.map(toEntry);
-  }
-
-  async upsert(entry: SubscriptionEpisode): Promise<SubscriptionEpisode> {
+  async findById(id: number): Promise<Episode | null> {
     const [row] = await this.db
-      .insert(subscriptionEpisodes)
+      .select()
+      .from(episodes)
+      .where(eq(episodes.id, id));
+
+    return row ? toEpisode(row) : null;
+  }
+
+  async findBySerieId(serieId: number): Promise<Episode[]> {
+    const rows = await this.db
+      .select()
+      .from(episodes)
+      .where(eq(episodes.serieId, serieId))
+      .orderBy(asc(episodes.episodeNumber));
+
+    return rows.map(toEpisode);
+  }
+
+  async save(episode: Episode): Promise<Episode> {
+    const [row] = await this.db
+      .insert(episodes)
       .values({
-        subscriptionId: entry.subscriptionId,
-        episodeId: entry.episodeId,
-        status: entry.status,
-        grabbedAt: entry.grabbedAt ? new Date(entry.grabbedAt) : null,
+        id: episode.id || undefined,
+        serieId: episode.serieId,
+        episodeNumber: episode.episodeNumber,
+        airedAt: episode.airedAt,
       })
       .onConflictDoUpdate({
-        target: [subscriptionEpisodes.subscriptionId, subscriptionEpisodes.episodeId],
-        set: { status: entry.status, grabbedAt: entry.grabbedAt ? new Date(entry.grabbedAt) : null },
+        target: episodes.id,
+        set: {
+          serieId: episode.serieId,
+          episodeNumber: episode.episodeNumber,
+          airedAt: episode.airedAt ? new Date(episode.airedAt) : null,
+        },
       })
       .returning();
-    return toEntry(row);
+
+    return toEpisode(row);
+  }
+
+  async delete(id: number): Promise<void> {
+    await this.db.delete(episodes).where(eq(episodes.id, id));
   }
 }
