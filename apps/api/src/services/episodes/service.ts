@@ -3,7 +3,7 @@ import type { Episode } from '../../models/episode.js';
 import type { SubscriptionEpisode, EpisodeStatus } from '../../models/subscription_episode.js';
 import type { EpisodeRepository } from '../../repositories/episode.repository.js';
 import type { SubscriptionEpisodeRepository } from '../../repositories/storage/db/subscription_episode.repository.js';
-import type { PremiumizeService } from '../../services/debrid/premiumize/service.js';
+import type { DebridProvider } from '../../services/debrid/debrid.service.js';
 import { EpisodeNotFoundError, EpisodeLinkUnavailableError } from './error.js';
 import type { CreatePendingEpisodeInput } from './types.js';
 
@@ -13,7 +13,7 @@ export class EpisodeService {
   constructor(
     private readonly episodeRepository: EpisodeRepository,
     private readonly subscriptionEpisodeRepository: SubscriptionEpisodeRepository,
-    private readonly premiumizeService: PremiumizeService,
+    private readonly debridProvider: DebridProvider,
   ) { }
 
   async list(): Promise<Episode[]> {
@@ -44,7 +44,7 @@ export class EpisodeService {
     episodeId: number,
     magnetOrTorrentUrl: string
   ): Promise<SubscriptionEpisode> {
-    const files = await this.premiumizeService.getDirectDownloadLink(magnetOrTorrentUrl);
+    const files = await this.debridProvider.getDirectDownloadLink(magnetOrTorrentUrl);
 
     if (files.length === 0) {
       await this.updateStatus(subscriptionId, episodeId, 'failed');

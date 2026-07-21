@@ -17,14 +17,13 @@ export class PremiumizeService implements DebridProvider {
     console.log('🔑 PremiumizeService - API Key loaded:', this.apiKey ? `YES (${this.apiKey.substring(0, 8)}...)` : '❌ NO - API KEY IS UNDEFINED');
     const body = new URLSearchParams({
       src: source,
-      apikey: this.apiKey  // <-- Add apikey to body
+      apikey: this.apiKey  // <-- Add apikey to body (In the .env)
     });
 
     const response = await fetch(`${this.baseUrl}/transfer/directdl`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
-        // Remove Authorization header entirely
       },
       body,
     });
