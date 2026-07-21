@@ -2,7 +2,6 @@
   "name": "aag",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
   "private": true,
   "scripts": {
     "build": "turbo run build",
@@ -13,7 +12,6 @@
     "db:migrate": "turbo run db:migrate --filter=@aag/api",
     "db:studio": "turbo run db:studio --filter=@aag/api"
   },
-  "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "module",
