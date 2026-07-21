@@ -1,39 +1,65 @@
-// main.ts
-// --- composition root : seul fichier autorisé à connaître les classes concrètes ---
+import 'dotenv/config';
 
 import { createApp } from './app.js';
 
-import { InMemorySubscriptionRepository } from './repositories/in_memory/subscription.repository.js';
-import { InMemorySerieRepository } from './repositories/in_memory/serie.repository.js';
-import { AnilistService } from './services/metadata/anilist/service.js';
-import { SubscriptionService } from './services/subscription.service.js';
-
-
-import { InMemoryEpisodeRepository } from './repositories/in_memory/episode.repository.js';
-import { PremiumizeService } from './services/debrid/premiumize/service.js';
-import { EpisodeService } from './services/episode.service.js';
 import { EpisodeController } from './controllers/episode.controller.js';
 import { SubscriptionController } from './controllers/subscription.controller.js';
 
-// domaine subscription
-const subscriptionRepository = new InMemorySubscriptionRepository();
-const seriesRepository = new InMemorySerieRepository();
-const anilistService = new AnilistService();
-const subscriptionService = new SubscriptionService(subscriptionRepository, seriesRepository, anilistService);
-const subscriptionController = new SubscriptionController(subscriptionService);
+import { InMemoryEpisodeRepository } from './repositories/in_memory/episode.repository.js';
+import { InMemorySerieRepository } from './repositories/in_memory/serie.repository.js';
+import { InMemorySubscriptionEpisodeRepository } from './repositories/in_memory/subscription_episode.repository.js';
+import { InMemorySubscriptionRepository } from './repositories/in_memory/subscription.repository.js';
 
-// domaine episode
+import type { DebridProvider } from './services/debrid/debrid.service.js';
+import { PremiumizeService } from './services/debrid/premiumize/service.js';
+import { EpisodeService } from './services/episodes/service.js';
+
+import { AnilistService } from './services/metadata/anilist/service.js';
+import type { MetadataService } from './services/metadata/metadata.service.js';
+
+import { SubscriptionService } from './services/subscription/subscription.service.js';
+
+const port = Number(process.env.PORT ?? 3000);
 const premiumizeApiKey = process.env.PREMIUMIZE_API_KEY;
+
 if (!premiumizeApiKey) {
-  throw new Error("PREMIUMIZE_API_KEY manquant dans l'environnement");
+  throw new Error('PREMIUMIZE_API_KEY is required');
 }
 
-const premiumizeService = new PremiumizeService({ apiKey: premiumizeApiKey });
 const episodeRepository = new InMemoryEpisodeRepository();
-const episodeService = new EpisodeService(episodeRepository, premiumizeService);
+const serieRepository = new InMemorySerieRepository();
+const subscriptionRepository = new InMemorySubscriptionRepository();
+const subscriptionEpisodeRepository =
+  new InMemorySubscriptionEpisodeRepository();
+
+const metadataProvider: MetadataService = new AnilistService();
+
+const debridProvider: DebridProvider = new PremiumizeService({
+  apiKey: premiumizeApiKey,
+});
+
+const subscriptionService = new SubscriptionService(
+  subscriptionRepository,
+  serieRepository,
+  metadataProvider,
+);
+
+const episodeService = new EpisodeService(
+  episodeRepository,
+  subscriptionEpisodeRepository,
+  debridProvider,
+);
+
+const subscriptionController =
+  new SubscriptionController(subscriptionService);
+
 const episodeController = new EpisodeController(episodeService);
 
-// --- fin composition root ---
+const app = createApp({
+  subscriptionController,
+  episodeController,
+});
 
-const app = createApp({ subscriptionController, episodeController });
-app.listen(process.env.PORT ?? 3000);
+app.listen(port, () => {
+  console.info(`AAG API listening on port ${port}`);
+});

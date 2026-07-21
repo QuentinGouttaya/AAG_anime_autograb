@@ -1,13 +1,16 @@
-// services/episode.service.ts
 import type { Episode } from '../../models/episode.js';
-import type { SubscriptionEpisode, EpisodeStatus } from '../../models/subscription_episode.js';
+import type {
+  EpisodeStatus,
+  SubscriptionEpisode,
+} from '../../models/subscription_episode.js';
 import type { EpisodeRepository } from '../../repositories/episode.repository.js';
-import type { SubscriptionEpisodeRepository } from '../../repositories/storage/db/subscription_episode.repository.js';
-import type { DebridProvider } from '../../services/debrid/debrid.service.js';
-import { EpisodeNotFoundError, EpisodeLinkUnavailableError } from './error.js';
+import type { SubscriptionEpisodeRepository } from '../../repositories/subscription_episode.repository.js';
+import type { DebridProvider } from '../debrid/debrid.service.js';
+import {
+  EpisodeLinkUnavailableError,
+  EpisodeNotFoundError,
+} from './error.js';
 import type { CreatePendingEpisodeInput } from './types.js';
-
-
 
 export class EpisodeService {
   constructor(
@@ -28,25 +31,27 @@ export class EpisodeService {
     return this.subscriptionEpisodeRepository.findByStatus('found');
   }
 
-  async createPending(input: CreatePendingEpisodeInput): Promise<SubscriptionEpisode> {
-    // Create a tracking record, NOT a physical Episode
-    const trackingRecord: SubscriptionEpisode = {
+  async createPending(
+    input: CreatePendingEpisodeInput,
+  ): Promise<SubscriptionEpisode> {
+    return this.subscriptionEpisodeRepository.upsert({
       subscriptionId: input.subscriptionId,
       episodeId: input.episodeId,
       status: 'pending',
       grabbedAt: null,
-    };
-    return this.subscriptionEpisodeRepository.upsert(trackingRecord);
+    });
   }
 
   async resolveDownloadLink(
     subscriptionId: number,
     episodeId: number,
-    magnetOrTorrentUrl: string
+    magnetOrTorrentUrl: string,
   ): Promise<SubscriptionEpisode> {
-    const files = await this.debridProvider.getDirectDownloadLink(magnetOrTorrentUrl);
+    const links = await this.debridProvider.getDirectDownloadLink(
+      magnetOrTorrentUrl,
+    );
 
-    if (files.length === 0) {
+    if (links.length === 0) {
       await this.updateStatus(subscriptionId, episodeId, 'failed');
       throw new EpisodeLinkUnavailableError(episodeId);
     }
@@ -57,19 +62,24 @@ export class EpisodeService {
   private async updateStatus(
     subscriptionId: number,
     episodeId: number,
-    status: EpisodeStatus
+    status: EpisodeStatus,
   ): Promise<SubscriptionEpisode> {
-    const records = await this.subscriptionEpisodeRepository.findBySubscriptionId(subscriptionId);
-    const record = records.find(r => r.episodeId === episodeId);
+    const entries = await this.subscriptionEpisodeRepository
+      .findBySubscriptionId(subscriptionId);
 
-    if (!record) throw new EpisodeNotFoundError(episodeId);
+    const entry = entries.find((item) => item.episodeId === episodeId);
+
+    if (!entry) {
+      throw new EpisodeNotFoundError(episodeId);
+    }
 
     return this.subscriptionEpisodeRepository.upsert({
-      ...record,
+      ...entry,
       status,
-      grabbedAt: (status === 'found' || status === 'added' || status === 'ready')
-        ? new Date().toISOString()
-        : record.grabbedAt
+      grabbedAt:
+        status === 'found' || status === 'added' || status === 'ready'
+          ? new Date().toISOString()
+          : entry.grabbedAt,
     });
   }
 }

@@ -1,6 +1,6 @@
 // services/filter/metadata/filter.ts
 import { AbstractFilter, applyFilterChain, type FilterHandler } from '../index.js';
-import { TagMatchMode, GenreMatchMode } from '../../../models/match_mode.js';
+import { TagMatchMode, GenreMatchMode } from '../../../models/match_modes.js';
 
 export interface AnimeMetadata {
   anilistId: number;

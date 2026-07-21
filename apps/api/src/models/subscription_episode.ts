@@ -1,6 +1,14 @@
-import type TrackedEpisode from './tracked_episode.js';
-import type Subscription from './subscription.js';
-export type EpisodeStatus = "pending" | "searching" | "found" | "added" | "ready" | "failed";
+// src/models/subscription_episode.ts
+import type { TrackedEpisode } from './tracked_episode.js';
+import type { Subscription } from './subscription.js';
+
+export type EpisodeStatus =
+  | 'pending'
+  | 'searching'
+  | 'found'
+  | 'added'
+  | 'ready'
+  | 'failed';
 
 export type SubscriptionEpisode = {
   subscriptionId: number;
@@ -10,5 +18,5 @@ export type SubscriptionEpisode = {
 };
 
 export type SubscriptionWithEpisodes = Subscription & {
-  episodeLinks: TrackedEpisode[]; // aggregated view, not owned nesting
+  episodeLinks: TrackedEpisode[];
 };
