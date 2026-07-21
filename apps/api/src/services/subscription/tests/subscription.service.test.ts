@@ -18,6 +18,7 @@ describe('SubscriptionService.create', () => {
     const metadataService: MetadataService = {
       searchAnime: async () => [],
       getSeasonAnime: async () => [],
+      getSeasonMetadata: async () => [],
       getAnimeById: async (id: number) => ({
         id: 0,
         anilistId: id,

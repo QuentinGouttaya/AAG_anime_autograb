@@ -1,6 +1,7 @@
 // src/services/tests/premiumize.service.test.ts
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { PremiumizeService, PremiumizeApiError } from '../premiumize.service.js';
+import { PremiumizeService } from '../debrid/premiumize/service.js';
+import { PremiumizeApiError } from '../debrid/premiumize/error.js';
 
 describe('PremiumizeService', () => {
   let service: PremiumizeService;

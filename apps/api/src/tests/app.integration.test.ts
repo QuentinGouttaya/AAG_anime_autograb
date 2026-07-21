@@ -5,11 +5,12 @@ import { createApp } from '../app.js';
 import type { AppDependencies } from '../dependencies/app_dependencies.js';
 import { InMemoryEpisodeRepository } from '../repositories/in_memory/episode.repository.js';
 import { InMemorySubscriptionRepository } from '../repositories/in_memory/subscription.repository.js';
+import { InMemorySubscriptionEpisodeRepository } from '../repositories/in_memory/subscription_episode.repository.js';
 import { InMemorySerieRepository } from '../repositories/in_memory/serie.repository.js';
-import { EpisodeService } from '../services/episode.service.js';
-import { PremiumizeService } from '../services/premiumize.service.js';
+import { EpisodeService } from '../services/episodes/service.js';
+import type { DebridProvider } from '../services/debrid/debrid.service.js';
 import { AnilistService } from '../services/metadata/anilist/service.js';
-import { SubscriptionService } from '../services/subscription.service.js';
+import { SubscriptionService } from '../services/subscription/subscription.service.js';
 import { SubscriptionController } from '../controllers/subscription.controller.js';
 import { EpisodeController } from '../controllers/episode.controller.js';
 
@@ -20,16 +21,22 @@ describe('App integration', () => {
   beforeAll(async () => {
     const episodeRepository = new InMemoryEpisodeRepository();
     const subscriptionRepository = new InMemorySubscriptionRepository();
+    const subscriptionEpisodeRepository =
+      new InMemorySubscriptionEpisodeRepository();
     const serieRepository = new InMemorySerieRepository();
 
-    const premiumizeConfig = {
-      apiKey: process.env.PREMIUMIZE_API_KEY ?? '',
-      baseUrl: process.env.PREMIUMIZE_BASE_URL,
+    const debridProvider: DebridProvider = {
+      getDirectDownloadLink: async () => [],
     };
-    const premiumizeService = new PremiumizeService(premiumizeConfig);
+
     const anilistService = new AnilistService();
 
-    const episodeService = new EpisodeService(episodeRepository, premiumizeService);
+    const episodeService = new EpisodeService(
+      episodeRepository,
+      subscriptionEpisodeRepository,
+      debridProvider,
+    );
+
     const subscriptionService = new SubscriptionService(
       subscriptionRepository,
       serieRepository,
@@ -37,7 +44,9 @@ describe('App integration', () => {
     );
 
     const episodeController = new EpisodeController(episodeService);
-    const subscriptionController = new SubscriptionController(subscriptionService);
+    const subscriptionController = new SubscriptionController(
+      subscriptionService,
+    );
 
     const dependencies: AppDependencies = {
       episodeController,
@@ -50,25 +59,29 @@ describe('App integration', () => {
       server = app.listen(0, () => {
         const address = server.address();
         const port = typeof address === 'object' && address ? address.port : 0;
+
         baseUrl = `http://localhost:${port}`;
         resolve();
       });
     });
   });
 
-  afterAll(() => {
-    server.close();
+  afterAll(async () => {
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => (error ? reject(error) : resolve()));
+    });
   });
 
   it('GET /episodes returns a list', async () => {
     const res = await fetch(`${baseUrl}/api/episodes`);
+
     expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(Array.isArray(body)).toBe(true);
+    expect(Array.isArray(await res.json())).toBe(true);
   });
 
-  it('GET /episodes/:id returns 404 for unknown episode', async () => {
+  it('GET /episodes/:id returns 404 for an unknown episode', async () => {
     const res = await fetch(`${baseUrl}/api/episodes/999999`);
+
     expect(res.status).toBe(404);
   });
 });

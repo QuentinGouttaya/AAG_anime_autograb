@@ -1,65 +1,132 @@
 // src/services/tests/episode.service.test.ts
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { EpisodeService, EpisodeNotFoundError } from '../episode.service.js';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { EpisodeService } from '../episodes/service.js';
+import {
+  EpisodeLinkUnavailableError,
+  EpisodeNotFoundError,
+} from '../episodes/error.js';
+import type { DebridProvider } from '../debrid/debrid.service.js';
+import type { Episode } from '../../models/episode.js';
+import type { SubscriptionEpisode } from '../../models/subscription_episode.js';
 import type { EpisodeRepository } from '../../repositories/episode.repository.js';
-import type { PremiumizeService } from '../premiumize.service.js';
-import type { Episode } from '@aag/domain';
+import type { SubscriptionEpisodeRepository } from '../../repositories/subscription_episode.repository.js';
 
 function buildEpisode(overrides: Partial<Episode> = {}): Episode {
-  return { id: 1, subscriptionId: 1, episodeNumber: 1, status: 'pending', ...overrides };
+  return {
+    id: 1,
+    serieId: 1,
+    episodeNumber: 1,
+    airedAt: null,
+    ...overrides,
+  };
+}
+
+function buildSubscriptionEpisode(
+  overrides: Partial<SubscriptionEpisode> = {},
+): SubscriptionEpisode {
+  return {
+    subscriptionId: 1,
+    episodeId: 1,
+    status: 'pending',
+    grabbedAt: null,
+    ...overrides,
+  };
 }
 
 describe('EpisodeService', () => {
   let episodeRepository: EpisodeRepository;
-  let premiumizeService: PremiumizeService;
+  let subscriptionEpisodeRepository: SubscriptionEpisodeRepository;
+  let debridProvider: DebridProvider;
   let service: EpisodeService;
 
   beforeEach(() => {
     episodeRepository = {
       findAll: vi.fn(),
       findById: vi.fn(),
-      findBySubscriptionId: vi.fn(),
-      findByStatus: vi.fn(),
+      findBySerieId: vi.fn(),
       save: vi.fn(),
       delete: vi.fn(),
     };
-    premiumizeService = {
-      getDirectDownloadLink: vi.fn(),
-    } as unknown as PremiumizeService;
 
-    service = new EpisodeService(episodeRepository, premiumizeService);
+    subscriptionEpisodeRepository = {
+      findBySubscriptionId: vi.fn(),
+      findByStatus: vi.fn(),
+      upsert: vi.fn(),
+      delete: vi.fn(),
+    };
+
+    debridProvider = {
+      getDirectDownloadLink: vi.fn(),
+    };
+
+    service = new EpisodeService(
+      episodeRepository,
+      subscriptionEpisodeRepository,
+      debridProvider,
+    );
   });
 
-  it('throws EpisodeNotFoundError when episode does not exist', async () => {
+  it('returns null for an unknown episode', async () => {
     vi.mocked(episodeRepository.findById).mockResolvedValue(null);
 
     await expect(service.getDetails(999)).resolves.toBeNull();
-    await expect(service.resolveDownloadLink(999, 'magnet:xxx')).rejects.toThrow(EpisodeNotFoundError);
   });
 
-  it('marks episode as found when Premiumize returns files', async () => {
-    const episode = buildEpisode();
-    vi.mocked(episodeRepository.findById).mockResolvedValue(episode);
-    vi.mocked(premiumizeService.getDirectDownloadLink).mockResolvedValue([
+  it('throws EpisodeNotFoundError when the subscription entry is absent', async () => {
+    vi.mocked(debridProvider.getDirectDownloadLink).mockResolvedValue([
       { path: 'ep1.mkv', size: 100, link: 'http://x' },
     ]);
-    vi.mocked(episodeRepository.save).mockImplementation(async (e) => e);
+    vi.mocked(subscriptionEpisodeRepository.findBySubscriptionId)
+      .mockResolvedValue([]);
 
-    const result = await service.resolveDownloadLink(1, 'magnet:xxx');
-
-    expect(result.status).toBe('found');
+    await expect(
+      service.resolveDownloadLink(1, 999, 'magnet:xxx'),
+    ).rejects.toThrow(EpisodeNotFoundError);
   });
 
-  it('marks episode as failed when no files found', async () => {
-    const episode = buildEpisode();
-    vi.mocked(episodeRepository.findById).mockResolvedValue(episode);
-    vi.mocked(premiumizeService.getDirectDownloadLink).mockResolvedValue([]);
-    vi.mocked(episodeRepository.save).mockImplementation(async (e) => e);
+  it('marks the subscription episode as found when debrid returns files', async () => {
+    const entry = buildSubscriptionEpisode();
 
-    await expect(service.resolveDownloadLink(1, 'magnet:xxx')).rejects.toThrow();
+    vi.mocked(debridProvider.getDirectDownloadLink).mockResolvedValue([
+      { path: 'ep1.mkv', size: 100, link: 'http://x' },
+    ]);
+    vi.mocked(subscriptionEpisodeRepository.findBySubscriptionId)
+      .mockResolvedValue([entry]);
+    vi.mocked(subscriptionEpisodeRepository.upsert)
+      .mockImplementation(async (value) => value);
 
-    expect(episodeRepository.save).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 'failed' }),
+    const result = await service.resolveDownloadLink(1, 1, 'magnet:xxx');
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        subscriptionId: 1,
+        episodeId: 1,
+        status: 'found',
+        grabbedAt: expect.any(String),
+      }),
+    );
+  });
+
+  it('marks the subscription episode as failed when debrid returns no files', async () => {
+    const entry = buildSubscriptionEpisode();
+
+    vi.mocked(debridProvider.getDirectDownloadLink).mockResolvedValue([]);
+    vi.mocked(subscriptionEpisodeRepository.findBySubscriptionId)
+      .mockResolvedValue([entry]);
+    vi.mocked(subscriptionEpisodeRepository.upsert)
+      .mockImplementation(async (value) => value);
+
+    await expect(
+      service.resolveDownloadLink(1, 1, 'magnet:xxx'),
+    ).rejects.toThrow(EpisodeLinkUnavailableError);
+
+    expect(subscriptionEpisodeRepository.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        subscriptionId: 1,
+        episodeId: 1,
+        status: 'failed',
+        grabbedAt: null,
+      }),
     );
   });
 
@@ -67,7 +134,15 @@ describe('EpisodeService', () => {
     const episodes = [buildEpisode()];
     vi.mocked(episodeRepository.findAll).mockResolvedValue(episodes);
 
-    const result = await service.list();
-    expect(result).toEqual(episodes);
+    await expect(service.list()).resolves.toEqual(episodes);
+  });
+
+  it('lists found subscription episodes', async () => {
+    const entries = [buildSubscriptionEpisode({ status: 'found' })];
+    vi.mocked(subscriptionEpisodeRepository.findByStatus)
+      .mockResolvedValue(entries);
+
+    await expect(service.listAvailableFiles()).resolves.toEqual(entries);
+    expect(subscriptionEpisodeRepository.findByStatus).toHaveBeenCalledWith('found');
   });
 });
