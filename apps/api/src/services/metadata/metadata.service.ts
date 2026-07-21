@@ -8,4 +8,7 @@ export interface MetadataService {
   searchAnime(title: string): Promise<Serie[]>;
   getAnimeById(id: number): Promise<(Serie & { episodes: Episode[]; tags: Tag[] }) | null>;
   getSeasonAnime(season: Season, year: number): Promise<Serie[]>;
+
+  // Nouveau : pour la reco / filtre / scoring
+  getSeasonMetadata(season: Season, year: number): Promise<AnimeMetadata[]>;
 }

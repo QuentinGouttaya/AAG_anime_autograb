@@ -4,6 +4,7 @@ import type { Serie } from '../../../models/serie.js';
 import type { Episode } from '../../../models/episode.js';
 import type { Tag } from '../../../models/tag.js';
 import type { Season } from '../../../models/season.js';
+import type { AnimeMetadata } from '../../filter/metadata/filter.js';
 
 interface AnilistMediaTitle {
   romaji: string;
@@ -23,6 +24,8 @@ interface AnilistMedia {
   id: number;
   title: AnilistMediaTitle;
   episodes: number | null;
+  isAdult: boolean;
+  genres: string[];
   tags: AnilistTag[];
   airingSchedule: { nodes: AnilistAiringScheduleNode[] };
 }
@@ -36,6 +39,8 @@ const MEDIA_FIELDS = `
   id
   title { romaji english native }
   episodes
+  isAdult
+  genres
   tags { id name isAdult }
   airingSchedule(perPage: 50) { nodes { episode airingAt } }
 `;
@@ -54,12 +59,23 @@ export class AnilistService implements MetadataService {
     return json.data;
   }
 
+  //MAPPERS
   private toSerie(m: AnilistMedia): Serie {
     return { id: 0, anilistId: m.id, canonicalTitle: m.title.english ?? m.title.romaji };
   }
 
   private toTags(m: AnilistMedia): Tag[] {
     return m.tags.map((t) => ({ id: t.id, name: t.name, isAdult: t.isAdult }));
+  }
+
+  private toAnimeMetadata(m: AnilistMedia): AnimeMetadata {
+    return {
+      anilistId: m.id,
+      isAdult: m.isAdult,
+      episodes: m.episodes ?? 0,
+      tags: m.tags.map((t) => t.name),
+      genres: m.genres,
+    };
   }
 
   async searchAnime(title: string): Promise<Serie[]> {
@@ -109,4 +125,30 @@ export class AnilistService implements MetadataService {
     }
     return all;
   }
+
+  async getSeasonMetadata(season: Season, year: number): Promise<AnimeMetadata[]> {
+    const query = `
+      query ($season: MediaSeason, $year: Int, $page: Int) {
+        Page(page: $page, perPage: 50) {
+          pageInfo { hasNextPage }
+          media(season: $season, seasonYear: $year, type: ANIME, sort: POPULARITY_DESC) { ${MEDIA_FIELDS} }
+        }
+      }
+    `;
+    let page = 1;
+    const all: AnimeMetadata[] = [];
+
+    while (true) {
+      const data = await this.AnilistRequest<{ Page: { media: AnilistMedia[]; pageInfo: { hasNextPage: boolean } } }>(
+        query,
+        { season, year, page },
+      );
+      all.push(...data.Page.media.map((m) => this.toAnimeMetadata(m)));
+      if (!data.Page.pageInfo.hasNextPage) break;
+      page++;
+    }
+
+    return all;
+  }
+
 }
