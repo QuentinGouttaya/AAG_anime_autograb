@@ -5,10 +5,15 @@ import { createApp } from './app.js';
 import { EpisodeController } from './controllers/episode.controller.js';
 import { SubscriptionController } from './controllers/subscription.controller.js';
 
-import { InMemoryEpisodeRepository } from './repositories/in_memory/episode.repository.js';
-import { InMemorySerieRepository } from './repositories/in_memory/serie.repository.js';
-import { InMemorySubscriptionEpisodeRepository } from './repositories/in_memory/subscription_episode.repository.js';
-import { InMemorySubscriptionRepository } from './repositories/in_memory/subscription.repository.js';
+import dotenv from 'dotenv';
+
+dotenv.config({ path: '../../.env' });
+
+import { db } from './repositories/storage/index.js';
+import { PostgresEpisodeRepository } from './repositories/storage/db/episode.repository.js';
+import { PostgresSerieRepository } from './repositories/storage/db/serie.repository.js';
+import { PostgresSubscriptionRepository } from './repositories/storage/db/subscription.repository.js';
+import { PostgresSubscriptionEpisodeRepository } from './repositories/storage/db/subscription_episode.repository.js';
 
 import type { DebridProvider } from './services/debrid/debrid.service.js';
 import { PremiumizeService } from './services/debrid/premiumize/service.js';
@@ -26,11 +31,11 @@ if (!premiumizeApiKey) {
   throw new Error('PREMIUMIZE_API_KEY is required');
 }
 
-const episodeRepository = new InMemoryEpisodeRepository();
-const serieRepository = new InMemorySerieRepository();
-const subscriptionRepository = new InMemorySubscriptionRepository();
+const episodeRepository = new PostgresEpisodeRepository(db);
+const serieRepository = new PostgresSerieRepository(db);
+const subscriptionRepository = new PostgresSubscriptionRepository(db);
 const subscriptionEpisodeRepository =
-  new InMemorySubscriptionEpisodeRepository();
+  new PostgresSubscriptionEpisodeRepository(db);
 
 const metadataProvider: MetadataService = new AnilistService();
 

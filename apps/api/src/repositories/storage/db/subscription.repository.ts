@@ -1,72 +1,82 @@
-import { eq } from 'drizzle-orm';
-import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import type { Serie } from '../../../models/serie.js';
-import type { Tag } from '../../../models/tag.js';
-import type { SerieRepository } from '../../serie.repository.js';
-import { series, tags, serieTags } from './schema.js';
-import { BaseRepository } from '../base.repository.js';
+import { asc, eq } from 'drizzle-orm';
+import type { Database } from '../index.js';
 
-function toSerie(row: typeof series.$inferSelect): Serie {
-  return { id: row.id, anilistId: row.anilistId, canonicalTitle: row.canonicalTitle };
+import type { Subscription } from '../../../models/subscription.js';
+import type { SubscriptionRepository } from '../../subscription.repository.js';
+
+import { subscriptions } from './schema.js';
+
+function toSubscription(
+  row: typeof subscriptions.$inferSelect,
+): Subscription {
+  return {
+    id: row.id,
+    seriesId: row.seriesId,
+    preferredFansub: row.preferredFansub,
+    preferredResolution: row.preferredResolution,
+    minSeeders: row.minSeeders,
+    active: row.active,
+    createdAt: row.createdAt.toISOString(),
+  };
 }
 
-export class PostgresSerieRepository extends BaseRepository<typeof series> implements SerieRepository {
-  constructor(db: NodePgDatabase) {
-    super(db, series, series.id);
-  }
+export class PostgresSubscriptionRepository
+  implements SubscriptionRepository {
+  constructor(private readonly db: Database) { }
 
-  async findById(id: number): Promise<Serie | null> {
-    const row = await this.findRowById(id);
-    return row ? toSerie(row) : null;
-  }
-
-  async findByAnilistId(anilistId: number): Promise<Serie | null> {
-    const [row] = await this.findRowsWhere(eq(series.anilistId, anilistId));
-    return row ? toSerie(row) : null;
-  }
-
-  async save(serie: Serie): Promise<Serie> {
-    if (serie.id === 0) {
-      const [row] = await this.db
-        .insert(series)
-        .values({ anilistId: serie.anilistId, canonicalTitle: serie.canonicalTitle })
-        .returning();
-      return toSerie(row);
-    }
-    const [row] = await this.db
-      .update(series)
-      .set({ anilistId: serie.anilistId, canonicalTitle: serie.canonicalTitle })
-      .where(eq(series.id, serie.id))
-      .returning();
-    return toSerie(row);
-  }
-
-  async saveTags(serieId: number, serieTagsList: Tag[]): Promise<void> {
-    if (serieTagsList.length === 0) return;
-
-    // 1. Upsert les tags (dédupliqués par anilistId)
-    const insertedTags = await this.db
-      .insert(tags)
-      .values(serieTagsList.map((t) => ({ anilistId: t.id, name: t.name, isAdult: t.isAdult })))
-      .onConflictDoUpdate({
-        target: tags.anilistId,
-        set: { name: tags.name, isAdult: tags.isAdult },
-      })
-      .returning();
-
-    // 2. Remplace les liens serie_tags pour cette série
-    await this.db.delete(serieTags).where(eq(serieTags.serieId, serieId));
-    await this.db.insert(serieTags).values(
-      insertedTags.map((t) => ({ serieId, tagId: t.id }))
-    );
-  }
-
-  async findTagsBySerieId(serieId: number): Promise<Tag[]> {
+  async findAll(): Promise<Subscription[]> {
     const rows = await this.db
-      .select({ id: tags.anilistId, name: tags.name, isAdult: tags.isAdult })
-      .from(serieTags)
-      .innerJoin(tags, eq(serieTags.tagId, tags.id))
-      .where(eq(serieTags.serieId, serieId));
-    return rows;
+      .select()
+      .from(subscriptions)
+      .orderBy(asc(subscriptions.id));
+
+    return rows.map(toSubscription);
+  }
+
+  async findById(id: number): Promise<Subscription | null> {
+    const [row] = await this.db
+      .select()
+      .from(subscriptions)
+      .where(eq(subscriptions.id, id));
+
+    return row ? toSubscription(row) : null;
+  }
+
+  async save(subscription: Subscription): Promise<Subscription> {
+    if (subscription.id === 0) {
+      const [row] = await this.db
+        .insert(subscriptions)
+        .values({
+          seriesId: subscription.seriesId,
+          preferredFansub: subscription.preferredFansub,
+          preferredResolution: subscription.preferredResolution,
+          minSeeders: subscription.minSeeders,
+          active: subscription.active,
+          createdAt: new Date(subscription.createdAt),
+        })
+        .returning();
+
+      return toSubscription(row);
+    }
+
+    const [row] = await this.db
+      .update(subscriptions)
+      .set({
+        seriesId: subscription.seriesId,
+        preferredFansub: subscription.preferredFansub,
+        preferredResolution: subscription.preferredResolution,
+        minSeeders: subscription.minSeeders,
+        active: subscription.active,
+      })
+      .where(eq(subscriptions.id, subscription.id))
+      .returning();
+
+    return toSubscription(row);
+  }
+
+  async delete(id: number): Promise<void> {
+    await this.db
+      .delete(subscriptions)
+      .where(eq(subscriptions.id, id));
   }
 }

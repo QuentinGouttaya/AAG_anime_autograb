@@ -1,10 +1,10 @@
 import { eq, type SQL } from 'drizzle-orm';
-import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import type { Database } from './index.js';
 import type { PgColumn, PgTable, TableConfig } from 'drizzle-orm/pg-core';
 
 export abstract class BaseRepository<T extends PgTable<TableConfig>> {
   constructor(
-    protected readonly db: NodePgDatabase,
+    protected readonly db: Database,
     protected readonly table: T,
     protected readonly pkColumn: PgColumn,
   ) { }

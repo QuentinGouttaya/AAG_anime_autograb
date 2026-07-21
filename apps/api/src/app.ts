@@ -5,8 +5,12 @@ import { episodeRoutes } from './routes/episode.routes.js';
 
 export function createApp({ subscriptionController, episodeController }: AppDependencies) {
   const app = express();
-
+  app.disable('x-powered-by');
   app.use(express.json());
+
+  app.get('/health', (_req, res) => {
+    res.status(200).json({ status: 'ok' });
+  });
 
   // routes
   app.use('/api', subscriptionRoutes(subscriptionController));

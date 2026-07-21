@@ -1,17 +1,17 @@
 import { eq } from 'drizzle-orm';
-import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import type { Database } from '../index.js';
 import type { Serie } from '../../../models/serie.js';
 import type { SerieRepository } from '../../serie.repository.js';
 import { series, tags, serieTags } from './schema.js';
 import { BaseRepository } from '../base.repository.js';
-import { Tag } from "../../../models/tag.js";
+import type { Tag } from '../../../models/tag.js';
 
 function toSerie(row: typeof series.$inferSelect): Serie {
   return { id: row.id, anilistId: row.anilistId, canonicalTitle: row.canonicalTitle };
 }
 
 export class PostgresSerieRepository extends BaseRepository<typeof series> implements SerieRepository {
-  constructor(db: NodePgDatabase) {
+  constructor(db: Database) {
     super(db, series, series.id);
   }
 

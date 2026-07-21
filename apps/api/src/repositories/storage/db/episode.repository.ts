@@ -1,6 +1,6 @@
 // src/repositories/storage/db/episode.repository.ts
 import { asc, eq } from 'drizzle-orm';
-import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import type { Database } from '../index.js';
 
 import type { Episode } from '../../../models/episode.js';
 import type { EpisodeRepository } from '../../episode.repository.js';
@@ -17,7 +17,7 @@ function toEpisode(row: typeof episodes.$inferSelect): Episode {
 }
 
 export class PostgresEpisodeRepository implements EpisodeRepository {
-  constructor(private readonly db: NodePgDatabase) { }
+  constructor(private readonly db: Database) { }
 
   async findAll(): Promise<Episode[]> {
     const rows = await this.db

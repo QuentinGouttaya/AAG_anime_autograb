@@ -1,5 +1,5 @@
 import { and, eq } from 'drizzle-orm';
-import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import type { Database } from '../index.js';
 
 import type {
   EpisodeStatus,
@@ -22,7 +22,7 @@ function toEntry(
 
 export class PostgresSubscriptionEpisodeRepository
   implements SubscriptionEpisodeRepository {
-  constructor(private readonly db: NodePgDatabase) { }
+  constructor(private readonly db: Database) { }
 
   async findBySubscriptionId(
     subscriptionId: number,
