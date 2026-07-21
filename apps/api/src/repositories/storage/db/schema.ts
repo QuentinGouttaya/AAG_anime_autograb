@@ -7,6 +7,13 @@ export const series = pgTable('series', {
   canonicalTitle: text('canonical_title').notNull(),
 });
 
+export const tags = pgTable('tags', {
+  id: serial('id').primaryKey(),
+  anilistId: integer('anilist_id').notNull().unique(),
+  name: text('name').notNull(),
+  isAdult: boolean('is_adult').notNull().default(false),
+});
+
 export const episodes = pgTable('episodes', {
   id: serial('id').primaryKey(),
   serieId: integer('serie_id').notNull().references(() => series.id, { onDelete: 'cascade' }),
@@ -31,4 +38,11 @@ export const subscriptionEpisodes = pgTable('subscription_episodes', {
   grabbedAt: timestamp('grabbed_at'),
 }, (table) => ({
   pk: primaryKey({ columns: [table.subscriptionId, table.episodeId] }),
+}));
+
+export const serieTags = pgTable('serie_tags', {
+  serieId: integer('serie_id').notNull().references(() => series.id, { onDelete: 'cascade' }),
+  tagId: integer('tag_id').notNull().references(() => tags.id, { onDelete: 'cascade' }),
+}, (table) => ({
+  pk: primaryKey({ columns: [table.serieId, table.tagId] }),
 }));

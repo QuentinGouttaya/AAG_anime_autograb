@@ -1,8 +1,10 @@
 import type { Serie } from '../../models/serie.js';
+import type { Tag } from '../../models/tag.js';
 import type { SerieRepository } from '../serie.repository.js';
 
 export class InMemorySerieRepository implements SerieRepository {
   private readonly items = new Map<number, Serie>();
+  private readonly tagsBySerieId = new Map<number, Tag[]>();
   private nextId = 1;
 
   async findById(id: number): Promise<Serie | null> {
@@ -27,5 +29,14 @@ export class InMemorySerieRepository implements SerieRepository {
 
   async delete(id: number): Promise<void> {
     this.items.delete(id);
+    this.tagsBySerieId.delete(id);
+  }
+
+  async saveTags(serieId: number, tags: Tag[]): Promise<void> {
+    this.tagsBySerieId.set(serieId, tags);
+  }
+
+  async findTagsBySerieId(serieId: number): Promise<Tag[]> {
+    return this.tagsBySerieId.get(serieId) ?? [];
   }
 }
