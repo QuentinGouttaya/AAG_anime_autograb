@@ -1,4 +1,3 @@
-// storage/base.repository.ts
 import { eq, type SQL } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import type { PgColumn, PgTable, TableConfig } from 'drizzle-orm/pg-core';
@@ -10,20 +9,33 @@ export abstract class BaseRepository<T extends PgTable<TableConfig>> {
     protected readonly pkColumn: PgColumn,
   ) { }
 
-  protected findAllRows() {
-    return this.db.select().from(this.table);
+  protected async findAllRows(): Promise<T['$inferSelect'][]> {
+    const rows = await this.db.select().from(this.table as PgTable);
+
+    return rows as T['$inferSelect'][];
   }
 
-  protected async findRowById(id: number) {
-    const [row] = await this.db.select().from(this.table).where(eq(this.pkColumn, id));
-    return row ?? null;
+  protected async findRowById(id: number): Promise<T['$inferSelect'] | null> {
+    const [row] = await this.db
+      .select()
+      .from(this.table as PgTable)
+      .where(eq(this.pkColumn, id));
+
+    return (row as T['$inferSelect'] | undefined) ?? null;
   }
 
-  protected findRowsWhere(condition: SQL) {
-    return this.db.select().from(this.table).where(condition);
+  protected async findRowsWhere(
+    condition: SQL,
+  ): Promise<T['$inferSelect'][]> {
+    const rows = await this.db
+      .select()
+      .from(this.table as PgTable)
+      .where(condition);
+
+    return rows as T['$inferSelect'][];
   }
 
   async delete(id: number): Promise<void> {
-    await this.db.delete(this.table).where(eq(this.pkColumn, id));
+    await this.db.delete(this.table as PgTable).where(eq(this.pkColumn, id));
   }
 }
