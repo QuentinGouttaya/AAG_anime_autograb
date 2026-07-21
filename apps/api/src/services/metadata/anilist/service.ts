@@ -46,26 +46,43 @@ const MEDIA_FIELDS = `
 `;
 
 export class AnilistService implements MetadataService {
-  private async AnilistRequest<T>(query: string, variables: Record<string, unknown>): Promise<T> {
+  private async AnilistRequest<T>(
+    query: string,
+    variables: Record<string, unknown>,
+  ): Promise<T> {
     const res = await fetch(ANILIST_ENDPOINT, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ query, variables }),
     });
-    if (res.status === 429 || res.status >= 500) throw new AnilistApiError(`HTTP ${res.status}`, true);
-    if (!res.ok) throw new AnilistApiError(`HTTP ${res.status}`, false);
+
+    if (res.status === 429 || res.status >= 500) {
+      throw new AnilistApiError(`HTTP ${res.status}`, true, res.status);
+    }
+
+    if (!res.ok) {
+      throw new AnilistApiError(`HTTP ${res.status}`, false, res.status);
+    }
+
     const json = (await res.json()) as AnilistGraphQLResponse<T>;
-    if (json.errors?.length) throw new AnilistApiError(json.errors[0].message, false);
+
+    if (json.errors?.length) {
+      throw new AnilistApiError(json.errors[0].message, false);
+    }
+
     return json.data;
   }
-
   //MAPPERS
   private toSerie(m: AnilistMedia): Serie {
     return { id: 0, anilistId: m.id, canonicalTitle: m.title.english ?? m.title.romaji };
   }
 
-  private toTags(m: AnilistMedia): Tag[] {
-    return m.tags.map((t) => ({ id: t.id, name: t.name, isAdult: t.isAdult }));
+  private toTags(media: AnilistMedia): Tag[] {
+    return (media.tags ?? []).map((tag) => ({
+      id: tag.id,
+      name: tag.name,
+      isAdult: tag.isAdult,
+    }));
   }
 
   private toAnimeMetadata(m: AnilistMedia): AnimeMetadata {
@@ -90,18 +107,43 @@ export class AnilistService implements MetadataService {
     return data.Page.media.map((m) => this.toSerie(m));
   }
 
-  async getAnimeById(anilistId: number): Promise<(Serie & { episodes: Episode[]; tags: Tag[] }) | null> {
-    const query = `query ($id: Int) { Media(id: $id, type: ANIME) { ${MEDIA_FIELDS} } }`;
-    const data = await this.AnilistRequest<{ Media: AnilistMedia | null }>(query, { id: anilistId });
+  async getAnimeById(
+    anilistId: number,
+  ): Promise<(Serie & { episodes: Episode[]; tags: Tag[] }) | null> {
+    const query =
+      `query ($id: Int) { Media(id: $id, type: ANIME) { ${MEDIA_FIELDS} } }`;
+
+    let data: { Media: AnilistMedia | null };
+
+    try {
+      data = await this.AnilistRequest<{ Media: AnilistMedia | null }>(
+        query,
+        { id: anilistId },
+      );
+    } catch (error) {
+      if (error instanceof AnilistApiError && error.status === 404) {
+        return null;
+      }
+
+      throw error;
+    }
+
     if (!data.Media) return null;
+
     const serie = this.toSerie(data.Media);
-    const episodes: Episode[] = data.Media.airingSchedule.nodes.map((n) => ({
+
+    const episodes: Episode[] = data.Media.airingSchedule.nodes.map((node) => ({
       id: 0,
       serieId: serie.id,
-      episodeNumber: n.episode,
-      airedAt: new Date(n.airingAt * 1000),
+      episodeNumber: node.episode,
+      airedAt: new Date(node.airingAt * 1000),
     }));
-    return { ...serie, tags: this.toTags(data.Media), episodes };
+
+    return {
+      ...serie,
+      tags: this.toTags(data.Media),
+      episodes,
+    };
   }
 
   async getSeasonAnime(season: Season, year: number): Promise<Serie[]> {

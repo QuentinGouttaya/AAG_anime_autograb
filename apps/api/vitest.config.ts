@@ -1,5 +1,12 @@
+import { configDefaults } from 'vitest/config';
+
 export default {
   test: {
-    exclude: ['**/dist/**', '**/node_modules/**'],
+    exclude: [
+      ...configDefaults.exclude,
+      '**/dist/**',
+      '**/*.integration.test.ts',
+      '**/anilist_tag.test.ts',
+    ],
   },
 };
