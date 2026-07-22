@@ -25,13 +25,24 @@ export class SubscriptionService {
     return Promise.all(
       subs.map(async (sub) => {
         const serie = await this.serieRepository.findById(sub.seriesId);
+        const tags = serie ? await this.serieRepository.findTagsBySerieId(serie.id) : [];
+
         return {
           ...sub,
-          serie: serie ?? {
-            id: sub.seriesId,
-            anilistId: 0,
-            canonicalTitle: `Serie #${sub.seriesId}`,
-          },
+          serie: serie
+            ? {
+              ...serie,
+              tags,
+              genres: serie.genres ?? [],
+            }
+            : {
+              id: sub.seriesId,
+              anilistId: 0,
+              canonicalTitle: `Serie #${sub.seriesId}`,
+              episodeCount: null,
+              genres: [],
+              tags: [],
+            },
         };
       }),
     );

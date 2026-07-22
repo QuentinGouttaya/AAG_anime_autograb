@@ -2,6 +2,7 @@ import { XMLParser } from 'fast-xml-parser';
 import type { TorrentIndexer, Torrent } from '../torrent.service.js';
 import { NyaaIndexerError } from './error.js';
 import type { NyaaConfig, NyaaRssFeed, NyaaRssItem } from './types.js';
+import { AttributeSort } from '../../sort/sort.js';
 
 export class NyaaIndexer implements TorrentIndexer {
   private readonly baseUrl: string;

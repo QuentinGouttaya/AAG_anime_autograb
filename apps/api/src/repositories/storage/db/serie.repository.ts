@@ -7,7 +7,13 @@ import { BaseRepository } from '../base.repository.js';
 import type { Tag } from '../../../models/tag.js';
 
 function toSerie(row: typeof series.$inferSelect): Serie {
-  return { id: row.id, anilistId: row.anilistId, canonicalTitle: row.canonicalTitle };
+  return {
+    id: row.id,
+    anilistId: row.anilistId,
+    canonicalTitle: row.canonicalTitle,
+    episodeCount: row.episodeCount,  // ← AJOUT
+    genres: row.genres,               // ← AJOUT
+  };
 }
 
 export class PostgresSerieRepository extends BaseRepository<typeof series> implements SerieRepository {
@@ -26,17 +32,21 @@ export class PostgresSerieRepository extends BaseRepository<typeof series> imple
   }
 
   async save(serie: Serie): Promise<Serie> {
+    const values = {
+      anilistId: serie.anilistId,
+      canonicalTitle: serie.canonicalTitle,
+      episodeCount: serie.episodeCount ?? null,
+      genres: serie.genres ?? [],
+    };
+
     if (serie.id === 0) {
-      const [row] = await this.db
-        .insert(series)
-        .values({ anilistId: serie.anilistId, canonicalTitle: serie.canonicalTitle })
-        .returning();
+      const [row] = await this.db.insert(series).values(values).returning();
       return toSerie(row);
     }
 
     const [row] = await this.db
       .update(series)
-      .set({ anilistId: serie.anilistId, canonicalTitle: serie.canonicalTitle })
+      .set(values)
       .where(eq(series.id, serie.id))
       .returning();
     return toSerie(row);
