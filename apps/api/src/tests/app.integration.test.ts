@@ -14,7 +14,8 @@ import { SubscriptionService } from '../services/subscription/subscription.servi
 import { SubscriptionController } from '../controllers/subscription.controller.js';
 import { EpisodeController } from '../controllers/episode.controller.js';
 import { MetadataController } from '../controllers/metadata.controller.js';
-
+import { RecommendationController } from '../controllers/recommendation.controller.js';
+import { RecommendationService } from '../services/recommendation/service.js';
 
 describe('App integration', () => {
   let server: Server;
@@ -66,13 +67,17 @@ describe('App integration', () => {
       subscriptionService,
     );
 
-
     const metadataController = new MetadataController(new AnilistService());
+    const recommendationController = new RecommendationController(
+      new RecommendationService(),
+      new AnilistService(),
+    );
 
     const dependencies: AppDependencies = {
       episodeController,
       subscriptionController,
       metadataController,           // ← AJOUTÉ
+      recommendationController,
     };
 
     const app = createApp(dependencies);

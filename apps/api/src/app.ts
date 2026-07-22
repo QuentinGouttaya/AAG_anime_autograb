@@ -3,14 +3,14 @@ import type { AppDependencies } from './dependencies/app_dependencies.js';
 import { subscriptionRoutes } from './routes/subscription.routes.js';
 import { episodeRoutes } from './routes/episode.routes.js';
 import { metadataRoutes } from './routes/metadata.routes.js';
-import { recommendationController } from './controllers/recommendation.controller.js';
 import { recommendationRoutes } from './routes/recommendation.routes.js';
 import cors from 'cors';
 
 export function createApp({
   subscriptionController,
   episodeController,
-  metadataController,                                            // ← AJOUTÉ
+  metadataController,
+  recommendationController
 }: AppDependencies) {
   const app = express();
 
