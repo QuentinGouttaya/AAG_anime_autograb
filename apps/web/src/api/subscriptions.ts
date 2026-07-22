@@ -1,21 +1,23 @@
 // apps/web/src/api/subscriptions.ts
-
 import { apiClient } from './client';
 import type { CreateSubscriptionInput, SubscriptionWithSerie } from '../types';
 
-export async function getSubscriptions(params?: {
-  status?: string;
-  resolution?: string;
+export type SubscriptionSortKey = 'createdAt' | 'title' | 'episodeCount';
+
+export interface SubscriptionQuery {
   search?: string;
-  sortBy?: string;
-  sortOrder?: 'asc' | 'desc';
-  genre?: string;         // <-- AJOUTÉ
-  animeStatus?: string;   // <-- AJOUTÉ
-  format?: string;        // <-- AJOUTÉ
-}): Promise<SubscriptionWithSerie[]> {
-  const { data } = await apiClient.get<SubscriptionWithSerie[]>('/subscriptions', {
-    params
-  });
+  status?: 'active' | 'inactive';
+  genre?: string;
+  animeStatus?: string;
+  format?: string;
+  sort?: SubscriptionSortKey;
+  direction?: 'asc' | 'desc';
+}
+
+export async function getSubscriptions(
+  params: SubscriptionQuery = {},
+): Promise<SubscriptionWithSerie[]> {
+  const { data } = await apiClient.get<SubscriptionWithSerie[]>('/subscriptions', { params });
   return Array.isArray(data) ? data : [];
 }
 

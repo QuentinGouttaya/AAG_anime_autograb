@@ -7,10 +7,11 @@ export type Serie = {
   canonicalTitle: string;
   romajiTitle?: string;
   coverImage?: string;
-  episodeCount?: number | null;   // ← RENOMMÉ (était "episodes")
+  episodeCount?: number | null;
   status?: string;
   format?: string;
   genres?: string[];
+  tags?: Tag[];
 };
 
 // Pas de conflit : episodes ici est bien Episode[]

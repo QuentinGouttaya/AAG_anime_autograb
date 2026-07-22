@@ -5,8 +5,12 @@ export const series = pgTable('series', {
   id: serial('id').primaryKey(),
   anilistId: integer('anilist_id').notNull().unique(),
   canonicalTitle: text('canonical_title').notNull(),
-  episodeCount: integer('episode_count'),          // ← AJOUT
-  genres: text('genres').array().notNull().default([]), // ← AJOUT
+  romajiTitle: text('romaji_title'),
+  coverImage: text('cover_image'),
+  status: text('status'),
+  format: text('format'),
+  episodeCount: integer('episode_count'),
+  genres: text('genres').array().notNull().default([]),
 });
 
 export const tags = pgTable('tags', {

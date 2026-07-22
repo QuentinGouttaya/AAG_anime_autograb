@@ -16,6 +16,10 @@ import {
 } from './error.js';
 import type { CreatePendingEpisodeInput } from './types.js';
 import { filterTorrents } from '../filter/torrent/filter.js';
+import { scoreTorrents } from '../scoring/score.torrents.js';
+import { WeightedScoringStrategy } from '../scoring/weighted.strategy.js';
+import type { ScoredTorrent } from '../scoring/scoring.strategy.js';
+import { ScoreDescendingSort } from '../sort/sort.js';
 
 // ── Résultat du grab ──
 export interface GrabResult {
@@ -28,16 +32,18 @@ export class EpisodeService {
   constructor(
     private readonly episodeRepository: EpisodeRepository,
     private readonly subscriptionEpisodeRepository: SubscriptionEpisodeRepository,
-    private readonly subscriptionRepository: SubscriptionRepository,   // ← AJOUTÉ
-    private readonly serieRepository: SerieRepository,                 // ← AJOUTÉ
-    private readonly torrentIndexer: TorrentIndexer,                   // ← AJOUTÉ
+    private readonly subscriptionRepository: SubscriptionRepository,
+    private readonly serieRepository: SerieRepository,
+    private readonly torrentIndexer: TorrentIndexer,
     private readonly debridProvider: DebridProvider,
   ) { }
 
-  // ── Existant ──
-
   async list(): Promise<Episode[]> {
     return this.episodeRepository.findAll();
+  }
+
+  async listBySerie(serieId: number): Promise<Episode[]> {
+    return this.episodeRepository.findBySerieId(serieId);
   }
 
   async getDetails(id: number): Promise<Episode | null> {
@@ -76,80 +82,81 @@ export class EpisodeService {
     return this.updateStatus(subscriptionId, episodeId, 'found');
   }
 
-  // ── NOUVEAU : grab automatique via NyaaIndexer ──
-
   async grabEpisode(
     subscriptionId: number,
     episodeId: number,
   ): Promise<GrabResult> {
-    // 1. Récupérer la subscription (préférences)
     const subscription =
       await this.subscriptionRepository.findById(subscriptionId);
     if (!subscription) {
-      throw new EpisodeNotFoundError(episodeId); // ou une SubscriptionNotFoundError
+      throw new EpisodeNotFoundError(episodeId);
     }
 
-    // 2. Récupérer la série (titre pour la query)
     const serie = await this.serieRepository.findById(subscription.seriesId);
     if (!serie) {
       throw new Error(`Serie #${subscription.seriesId} not found`);
     }
 
-    // 3. Récupérer l'épisode (numéro)
     const episode = await this.episodeRepository.findById(episodeId);
     if (!episode) {
       throw new EpisodeNotFoundError(episodeId);
     }
 
-    // 4. Construire la query de recherche Nyaa
     const episodeNum = String(episode.episodeNumber).padStart(2, '0');
 
-    // 1. Clean up the titles (remove " II", " Season 2", etc.)
     const cleanTitle = serie.canonicalTitle.replace(/\s*(II|III|IV|2nd Season|Season 2|Part 2)$/i, '').trim();
     const cleanRomaji = serie.romajiTitle?.replace(/\s*(II|III|IV|2nd Season|Season 2|Part 2)$/i, '').trim();
 
-    // 2. Build queries. 
-    // Note: I removed the hardcoded "S02E" because it will fail for Season 1 or Season 3 shows.
-    // Just searching the clean title + episode number is usually enough for Nyaa.
+    // Franchise seule, sans sous-titre de cour ni ponctuation : dernier
+    // recours quand romaji/anglais complets ne matchent rien (les fansubs
+    // n'indexent pas toujours le sous-titre de saison sur Nyaa).
+    const bareFranchise = serie.canonicalTitle.split(/[:\-–]/)[0].trim();
+
+    // Romaji d'abord : c'est le nommage utilisé par les fansubs sur Nyaa,
+    // le titre anglais AniList ne matche presque jamais leurs releases.
     const queriesToTry = [
-      `${cleanTitle} ${episodeNum}`,
       cleanRomaji ? `${cleanRomaji} ${episodeNum}` : null,
+      `${cleanTitle} ${episodeNum}`,
+      bareFranchise && bareFranchise !== cleanTitle ? `${bareFranchise} ${episodeNum}` : null,
     ].filter(Boolean) as string[];
+    let valid: Torrent[] = [];
+    let lastQuery = queriesToTry[0] || serie.canonicalTitle;
 
-    let results: Torrent[] = [];
-    let lastQuery = queriesToTry[0] || serie.canonicalTitle; // Fallback for error message
-
-    // 3. Search Nyaa sequentially
     for (const query of queriesToTry) {
-      lastQuery = query; // Update this so we know what query finally failed
-      results = await this.torrentIndexer.search(query);
+      lastQuery = query;
+      const results = await this.torrentIndexer.search(query);
 
-      if (results.length > 0) {
-        break; // Stop as soon as we find something!
+      valid = filterTorrents(results, {
+        minSeeders: subscription.minSeeders,
+        preferredResolution: subscription.preferredResolution,
+      });
+
+      console.info(
+        `[grab] query="${query}" raw=${results.length} valid=${valid.length}` +
+        (results.length > 0 ? ` sample="${results[0].title}" seeders=${results[0].seeders}` : ''),
+      );
+
+      if (valid.length > 0) {
+        break;
       }
     }
-
-    // 4. Apply your Chain of Responsibility filter here
-    const valid = filterTorrents(results, {
-      minSeeders: subscription.minSeeders,
-      preferredResolution: subscription.preferredResolution,
-    });
-
-    // 5. Handle failure
     if (valid.length === 0) {
       await this.updateStatus(subscriptionId, episodeId, 'failed');
 
-      // Use `lastQuery` instead of `query` to avoid the out-of-scope error
+
       throw new NoTorrentFoundError(
         lastQuery,
         subscription.minSeeders,
         subscription.preferredResolution
       );
     }
-    // 7. Prendre le 1er résultat (M1 — pas de scoring)
-    const best = valid[0];
 
-    // 8. Envoyer le magnet au débrideur (Premiumize)
+    // Scorer (seeders + bonus résolution/fansub) puis trier via SortStrategy
+    const scoringStrategy = new WeightedScoringStrategy({
+      preferredResolution: subscription.preferredResolution,
+    });
+    const scored = scoreTorrents(valid, scoringStrategy);
+    const [best] = new ScoreDescendingSort<ScoredTorrent>().sort(scored);
     let links;
     try {
       links = await this.debridProvider.getDirectDownloadLink(best.magnet);
@@ -158,7 +165,6 @@ export class EpisodeService {
       throw new EpisodeLinkUnavailableError(episodeId, { cause: error });
     }
 
-    // 9. Mettre à jour le statut → 'found'
     const subscriptionEpisode = await this.updateStatus(
       subscriptionId,
       episodeId,
@@ -171,28 +177,6 @@ export class EpisodeService {
       links,
     };
   }
-
-  // ── Filtrage M1 ──
-
-  private filterTorrents(
-    results: Torrent[],
-    prefs: { minSeeders: number; preferredResolution: string },
-  ): Torrent[] {
-    return results
-      // Filtrer par seeders minimum
-      .filter((t) => t.seeders >= prefs.minSeeders)
-      // Filtrer par résolution si spécifiée
-      .filter((t) => {
-        if (!prefs.preferredResolution) return true;
-        return t.title
-          .toLowerCase()
-          .includes(prefs.preferredResolution.toLowerCase());
-      })
-      // Trier par seeders desc (meilleur en premier)
-      .sort((a, b) => b.seeders - a.seeders);
-  }
-
-
 
   private async updateStatus(
     subscriptionId: number,

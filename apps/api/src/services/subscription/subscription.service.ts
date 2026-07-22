@@ -6,9 +6,31 @@ import type { MetadataService } from '../metadata/metadata.service.js';
 import { SubscriptionNotFoundError, AnimeNotFoundError } from './error.js';
 import type { CreateSubscriptionInput } from './types.js';
 import type { EpisodeRepository } from '../../repositories/episode.repository.js';
+import type { SubscriptionWithSerie } from '../../models/subscription_episode.js';
+import type { SubscriptionSortKey } from '../../models/subscription.js';
+import {
+  filterSubscriptions,
+  type SubscriptionFilterParams,
+} from '../filter/subscription/filter.js';
+import {
+  CreatedAtSort,
+  SeriesTitleSort,
+  EpisodeCountSort,
+} from '../sort/subscriptions/sort.js';
+import type { SortStrategy } from '../sort/sort.js';
+import type { SortDirection } from '../../models/sort.js';
 
-// ← AJOUTÉ : type de retour avec la série jointe
-export type SubscriptionWithSerie = Subscription & { serie: Serie };
+export type { SubscriptionWithSerie, SubscriptionSortKey };
+
+export interface SubscriptionQueryParams extends SubscriptionFilterParams {
+  sort?: SubscriptionSortKey;
+  direction?: SortDirection;
+}
+const SORT_STRATEGIES: Record<SubscriptionSortKey, (dir: SortDirection) => SortStrategy<SubscriptionWithSerie>> = {
+  createdAt: (dir) => new CreatedAtSort(dir),
+  title: (dir) => new SeriesTitleSort(dir),
+  episodeCount: (dir) => new EpisodeCountSort(dir),
+};
 
 export class SubscriptionService {
   constructor(
@@ -18,11 +40,11 @@ export class SubscriptionService {
     private readonly episodeRepository: EpisodeRepository,
   ) { }
 
-  // ← MODIFIÉ : joint la série
-  async getAll(): Promise<SubscriptionWithSerie[]> {
+  // Joint la série, puis filtre (chain of responsibility) et trie (strategy) côté backend
+  async getAll(params: SubscriptionQueryParams = {}): Promise<SubscriptionWithSerie[]> {
     const subs = await this.subscriptionRepository.findAll();
 
-    return Promise.all(
+    const withSerie = await Promise.all(
       subs.map(async (sub) => {
         const serie = await this.serieRepository.findById(sub.seriesId);
         const tags = serie ? await this.serieRepository.findTagsBySerieId(serie.id) : [];
@@ -46,6 +68,12 @@ export class SubscriptionService {
         };
       }),
     );
+
+    const filtered = filterSubscriptions(withSerie, params);
+
+    const sortKey = params.sort ?? 'createdAt';
+    const strategy = SORT_STRATEGIES[sortKey]?.(params.direction ?? 'desc');
+    return strategy ? strategy.sort(filtered) : filtered;
   }
 
   async getById(id: number): Promise<Subscription | null> {

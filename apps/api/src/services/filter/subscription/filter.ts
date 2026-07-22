@@ -1,8 +1,9 @@
 import { AbstractFilter, applyFilterChain, type FilterHandler } from '../index.js';
 import type { SubscriptionWithSerie } from '../../../models/subscription_episode.js';
+import type { SubscriptionStatus } from '../../../models/subscription.js';
 
 export interface SubscriptionFilterParams {
-  status?: 'active' | 'inactive';
+  status?: SubscriptionStatus;
   search?: string;
   genre?: string;
   animeStatus?: string;
@@ -10,7 +11,7 @@ export interface SubscriptionFilterParams {
 }
 
 class StatusFilter extends AbstractFilter<SubscriptionWithSerie> {
-  constructor(private readonly status: 'active' | 'inactive') {
+  constructor(private readonly status: SubscriptionStatus) {
     super();
   }
 

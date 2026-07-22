@@ -8,3 +8,13 @@ export type Subscription = {
   createdAt: string;
   episodeCount?: number; // AJOUTÉ - Propriété calculée par la requête SQL
 };
+
+export type SubscriptionSortKey = 'createdAt' | 'title' | 'episodeCount';
+export const SUBSCRIPTION_SORT_KEYS: SubscriptionSortKey[] = [
+  'createdAt',
+  'title',
+  'episodeCount',
+];
+
+export type SubscriptionStatus = 'active' | 'inactive';
+export const SUBSCRIPTION_STATUSES: SubscriptionStatus[] = ['active', 'inactive'];

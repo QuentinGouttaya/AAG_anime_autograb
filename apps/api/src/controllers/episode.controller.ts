@@ -4,8 +4,13 @@ import type { EpisodeService } from '../services/episodes/service.js';
 export class EpisodeController {
   constructor(private readonly episodeService: EpisodeService) { }
 
-  list = async (_req: Request, res: Response): Promise<void> => {
-    const episodes = await this.episodeService.list();
+  list = async (req: Request, res: Response): Promise<void> => {
+    const seriesId = Number(req.query.seriesId);
+
+    const episodes = Number.isInteger(seriesId) && seriesId > 0
+      ? await this.episodeService.listBySerie(seriesId)
+      : await this.episodeService.list();
+
     res.json(episodes);
   };
 

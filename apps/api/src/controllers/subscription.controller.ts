@@ -1,13 +1,36 @@
 import type { Request, Response } from 'express';
 import type { SubscriptionService } from '../services/subscription/subscription.service.js';
+import {
+  SUBSCRIPTION_SORT_KEYS,
+  SUBSCRIPTION_STATUSES,
+} from '../models/subscription.js';
+import { SORT_DIRECTIONS } from '../models/sort.js';
+
+function asString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
+
+function asEnum<T extends string>(value: unknown, allowed: readonly T[]): T | undefined {
+  return typeof value === 'string' && (allowed as readonly string[]).includes(value)
+    ? (value as T)
+    : undefined;
+}
 
 export class SubscriptionController {
   constructor(
     private readonly subscriptionService: SubscriptionService,
   ) { }
 
-  list = async (_req: Request, res: Response): Promise<void> => {
-    const subscriptions = await this.subscriptionService.getAll();
+  list = async (req: Request, res: Response): Promise<void> => {
+    const subscriptions = await this.subscriptionService.getAll({
+      search: asString(req.query.search),
+      status: asEnum(req.query.status, SUBSCRIPTION_STATUSES),
+      genre: asString(req.query.genre),
+      animeStatus: asString(req.query.animeStatus),
+      format: asString(req.query.format),
+      sort: asEnum(req.query.sort, SUBSCRIPTION_SORT_KEYS),
+      direction: asEnum(req.query.direction, SORT_DIRECTIONS),
+    });
     res.json(subscriptions);
   };
 

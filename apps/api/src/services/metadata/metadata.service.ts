@@ -1,4 +1,4 @@
-import type { Serie } from '../../models/serie.js';
+import type { Serie, SerieWithTags } from '../../models/serie.js';
 import type { Episode } from '../../models/episode.js';
 import type { Tag } from '../../models/tag.js';
 import type { Season } from '../../models/season.js';
@@ -23,7 +23,7 @@ export interface MetadataService {
     title: string,
     page?: number,
     perPage?: number,
-  ): Promise<PaginatedResult<Serie>>;
+  ): Promise<PaginatedResult<SerieWithTags>>;
 
   getAnimeById(id: number): Promise<(Serie & { episodes: Episode[]; tags: Tag[] }) | null>;
   getSeasonAnime(season: Season, year: number): Promise<Serie[]>;

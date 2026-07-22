@@ -1,17 +1,9 @@
-// Garde tes types existants mais assure-toi qu'ils sont cohérents
-
-export type Genre = {
-  id: number;
-  name: string;
-};
-
 export type Tag = {
   id: number;
   name: string;
   isAdult?: boolean;
 };
 
-// Note: Tu as "Anime" ici mais "Serie" ailleurs. Je recommande de garder "Serie" partout pour la cohérence
 export type Serie = {
   id: number;
   anilistId: number;
@@ -21,11 +13,10 @@ export type Serie = {
   bannerImage?: string;
   description?: string;
   episodeCount?: number | null;
-  episodes?: number | null;
   status?: string;
   format?: string;
   genres?: string[];
-  tags?: { id: number; anilistId: number; name: string; isAdult?: boolean }[];
+  tags?: Tag[];
 };
 
 export type Subscription = {
@@ -50,6 +41,22 @@ export type Episode = {
   airedAt: string | null;
 };
 
+export type EpisodeStatus =
+  | 'pending'
+  | 'searching'
+  | 'found'
+  | 'added'
+  | 'ready'
+  | 'failed'
+  | 'grabbed';
+
+export type SubscriptionEpisode = {
+  subscriptionId: number;
+  episodeId: number;
+  status: EpisodeStatus;
+  grabbedAt: string | null;
+};
+
 export type DetailedEpisode = Episode & {
   status?: EpisodeStatus;
   grabbedAt?: string | null;
@@ -58,8 +65,6 @@ export type DetailedEpisode = Episode & {
   torrentSize?: string;
   premiumizeItemId?: string;
 };
-
-export type EpisodeStatus = 'pending' | 'searching' | 'found' | 'added' | 'ready' | 'failed' | 'grabbed';
 
 export type PageInfo = {
   currentPage: number;

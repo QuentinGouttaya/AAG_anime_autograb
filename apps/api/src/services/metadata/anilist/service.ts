@@ -1,6 +1,6 @@
 import { MetadataService, PaginatedResult, PageInfo } from '../metadata.service.js';
 import { AnilistApiError } from './error.js';
-import type { Serie } from '../../../models/serie.js';
+import type { Serie, SerieWithTags } from '../../../models/serie.js';
 import type { Episode } from '../../../models/episode.js';
 import type { Tag } from '../../../models/tag.js';
 import type { Season } from '../../../models/season.js';
@@ -12,7 +12,6 @@ interface AnilistMediaTitle {
   native: string;
 }
 
-// ── AJOUTÉ ──
 interface AnilistCoverImage {
   large: string;
   medium: string;
@@ -43,7 +42,6 @@ interface AnilistMedia {
   airingSchedule: { nodes: AnilistAiringScheduleNode[] };
 }
 
-// ── AJOUTÉ ──
 interface AnilistPageInfo {
   total: number;
   currentPage: number;
@@ -106,14 +104,13 @@ export class AnilistService implements MetadataService {
       canonicalTitle: m.title.english ?? m.title.romaji,
       romajiTitle: m.title.romaji,
       coverImage: m.coverImage?.large ?? m.coverImage?.medium ?? undefined,
-      episodeCount: m.episodes,     // ← RENOMMÉ
+      episodeCount: m.episodes,
       status: m.status,
       format: m.format,
       genres: m.genres,
     };
   }
 
-  // ── AJOUTÉ ──
   private toPageInfo(p: AnilistPageInfo): PageInfo {
     return {
       currentPage: p.currentPage,
@@ -142,12 +139,11 @@ export class AnilistService implements MetadataService {
     };
   }
 
-  // ── MODIFIÉ : pagination + pageInfo ──
   async searchAnime(
     title: string,
     page: number = 1,
     perPage: number = 20,
-  ): Promise<PaginatedResult<Serie>> {
+  ): Promise<PaginatedResult<SerieWithTags>> {
     const query = `
       query ($search: String!, $page: Int!, $perPage: Int!) {
         Page(page: $page, perPage: $perPage) {
@@ -164,7 +160,7 @@ export class AnilistService implements MetadataService {
     }>(query, { search: title, page, perPage });
 
     return {
-      data: data.Page.media.map((m) => this.toSerie(m)),
+      data: data.Page.media.map((m) => ({ ...this.toSerie(m), tags: this.toTags(m) })),
       pageInfo: this.toPageInfo(data.Page.pageInfo),
     };
   }

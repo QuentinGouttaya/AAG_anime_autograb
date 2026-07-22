@@ -36,7 +36,7 @@ export class EpisodeCountSort implements SortStrategy<SubscriptionWithSerie> {
 
   sort(items: SubscriptionWithSerie[]): SubscriptionWithSerie[] {
     return [...items].sort((a, b) => {
-      const res = a.episodeCount - b.episodeCount;
+      const res = (a.episodeCount ?? 0) - (b.episodeCount ?? 0);
       return this.direction === 'asc' ? res : -res;
     });
   }

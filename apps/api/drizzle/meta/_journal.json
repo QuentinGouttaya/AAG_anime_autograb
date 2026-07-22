@@ -15,6 +15,13 @@
       "when": 1784719895064,
       "tag": "0001_striped_shotgun",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1784750398087,
+      "tag": "0002_wakeful_squadron_sinister",
+      "breakpoints": true
     }
   ]
 }
