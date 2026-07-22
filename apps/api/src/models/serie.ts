@@ -5,8 +5,13 @@ export type Serie = {
   id: number;
   anilistId: number;
   canonicalTitle: string;
+  coverImage?: string;
+  episodeCount?: number | null;   // ← RENOMMÉ (était "episodes")
+  status?: string;
+  format?: string;
+  genres?: string[];
 };
 
-//Volontaire car je veux de la composition dans ma bdd à terme
+// Pas de conflit : episodes ici est bien Episode[]
 export type SerieWithEpisodes = Serie & { episodes: Episode[] };
 export type SerieWithTags = Serie & { tags: Tag[] };

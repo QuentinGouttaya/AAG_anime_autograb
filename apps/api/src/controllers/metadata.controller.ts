@@ -7,6 +7,26 @@ const VALID_SEASONS: Season[] = ['WINTER', 'SPRING', 'SUMMER', 'FALL'];
 export class MetadataController {
   constructor(private readonly metadataService: MetadataService) { }
 
+  // ── AJOUTÉ : recherche paginée ──
+  searchAnime = async (req: Request, res: Response): Promise<void> => {
+    const query = String(req.query.q ?? '').trim();
+
+    if (!query || query.length < 2) {
+      res.status(400).json({ message: 'Query param "q" is required (min 2 chars)' });
+      return;
+    }
+
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const perPage = Math.min(50, Math.max(1, Number(req.query.perPage) || 20));
+
+    try {
+      const result = await this.metadataService.searchAnime(query, page, perPage);
+      res.json(result);
+    } catch {
+      res.status(502).json({ message: 'AniList request failed' });
+    }
+  };
+
   getSeasonAnime = async (req: Request, res: Response): Promise<void> => {
     const season = String(req.query.season ?? '').toUpperCase() as Season;
     const year = Number(req.query.year);
@@ -27,5 +47,3 @@ export class MetadataController {
     res.json(series);
   };
 }
-
-

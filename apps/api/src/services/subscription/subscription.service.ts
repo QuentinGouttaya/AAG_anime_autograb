@@ -1,10 +1,13 @@
-// services/subscription/subscription.service.ts
 import type { Subscription } from '../../models/subscription.js';
+import type { Serie } from '../../models/serie.js';
 import type { SubscriptionRepository } from '../../repositories/subscription.repository.js';
 import type { SerieRepository } from '../../repositories/serie.repository.js';
 import type { MetadataService } from '../metadata/metadata.service.js';
 import { SubscriptionNotFoundError, AnimeNotFoundError } from './error.js';
 import type { CreateSubscriptionInput } from './types.js';
+
+// ← AJOUTÉ : type de retour avec la série jointe
+export type SubscriptionWithSerie = Subscription & { serie: Serie };
 
 export class SubscriptionService {
   constructor(
@@ -13,8 +16,23 @@ export class SubscriptionService {
     private readonly metadataService: MetadataService,
   ) { }
 
-  async getAll(): Promise<Subscription[]> {
-    return this.subscriptionRepository.findAll();
+  // ← MODIFIÉ : joint la série
+  async getAll(): Promise<SubscriptionWithSerie[]> {
+    const subs = await this.subscriptionRepository.findAll();
+
+    return Promise.all(
+      subs.map(async (sub) => {
+        const serie = await this.serieRepository.findById(sub.seriesId);
+        return {
+          ...sub,
+          serie: serie ?? {
+            id: sub.seriesId,
+            anilistId: 0,
+            canonicalTitle: `Serie #${sub.seriesId}`,
+          },
+        };
+      }),
+    );
   }
 
   async getById(id: number): Promise<Subscription | null> {

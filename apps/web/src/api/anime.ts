@@ -1,13 +1,25 @@
 import { apiClient } from './client';
-import type { Anime } from '../types';
+import type { PaginatedResponse, Serie } from '../types';
 
-export async function getAnimes(): Promise<Anime[]> {
-  const { data } = await apiClient.get<Anime[]>('/animes');
+// ── AJOUTÉ : recherche paginée ──
+export async function searchAnimes(
+  query: string,
+  page: number = 1,
+  perPage: number = 20,
+): Promise<PaginatedResponse<Serie>> {
+  const { data } = await apiClient.get<PaginatedResponse<Serie>>(
+    '/metadata/search',
+    { params: { q: query, page, perPage } },
+  );
   return data;
 }
 
-export async function getAnimeById(id: string | number): Promise<Anime> {
-  const { data } = await apiClient.get<Anime>(`/animes/${id}`);
+export async function getAnimes(): Promise<Serie[]> {
+  const { data } = await apiClient.get<Serie[]>('/animes');
   return data;
 }
 
+export async function getAnimeById(id: string | number): Promise<Serie> {
+  const { data } = await apiClient.get<Serie>(`/animes/${id}`);
+  return data;
+}

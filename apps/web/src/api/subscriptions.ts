@@ -13,6 +13,6 @@ export async function createSubscription(
   return data;
 }
 
-export async function unsubscribe(id: number): Promise<void> {
+export async function deleteSubscription(id: number): Promise<void> {
   await apiClient.delete(`/subscriptions/${id}`);
 }

@@ -17,3 +17,26 @@ export async function resolveDownloadLink(
   );
   return data;
 }
+
+// ← AJOUTÉ : grab automatique via Nyaa
+export interface GrabResult {
+  subscriptionEpisode: SubscriptionEpisode;
+  torrent: {
+    title: string;
+    magnet: string;
+    size: string;
+    seeders: number;
+    leechers: number;
+  };
+  links: { path: string; size: number; link: string }[];
+}
+
+export async function grabEpisode(
+  subscriptionId: number,
+  episodeId: number,
+): Promise<GrabResult> {
+  const { data } = await apiClient.post<GrabResult>(
+    `/subscriptions/${subscriptionId}/episodes/${episodeId}/grab`,
+  );
+  return data;
+}

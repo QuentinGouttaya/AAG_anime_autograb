@@ -16,7 +16,16 @@ describe('SubscriptionService.create', () => {
     ];
 
     const metadataService: MetadataService = {
-      searchAnime: async () => [],
+      searchAnime: async () => ({
+        data: [],
+        pageInfo: {
+          currentPage: 1,
+          lastPage: 1,
+          total: 0,
+          hasNextPage: false,
+          perPage: 20,
+        },
+      }),
       getSeasonAnime: async () => [],
       getSeasonMetadata: async () => [],
       getAnimeById: async (id: number) => ({

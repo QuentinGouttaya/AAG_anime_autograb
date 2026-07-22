@@ -6,11 +6,10 @@ describe('AnilistService (integration, real API)', () => {
   const service = new AnilistService();
 
   it('searchAnime returns real results from AniList for a known title', async () => {
-    const result = await service.searchAnime('Attack on Titan');
-
-    expect(result.length).toBeGreaterThan(0);
-    expect(result[0]).toHaveProperty('anilistId');
-    expect(result[0]).toHaveProperty('canonicalTitle');
+    const result = await service.searchAnime('Frieren');
+    expect(result.data.length).toBeGreaterThan(0);
+    expect(result.data[0]).toHaveProperty('anilistId');
+    expect(result.data[0]).toHaveProperty('canonicalTitle');
   }, 15000);
 
   it('getAnimeById returns a real anime with episodes for a known AniList ID', async () => {

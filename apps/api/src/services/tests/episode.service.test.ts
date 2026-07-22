@@ -59,10 +59,52 @@ describe('EpisodeService', () => {
       getDirectDownloadLink: vi.fn(),
     };
 
+    const subscriptionRepository = {
+      findById: async () => ({
+        id: 1,
+        seriesId: 1,
+        preferredFansub: [],
+        preferredResolution: '1080p',
+        minSeeders: 1,
+        active: true,
+        createdAt: new Date().toISOString(),
+      }),
+      findAll: async () => [],
+      save: async (s: any) => s,
+      delete: async () => { },
+    };
+
+    const serieRepository = {
+      findById: async () => ({
+        id: 1,
+        anilistId: 154587,
+        canonicalTitle: 'Frieren: Beyond Journey\'s End',
+      }),
+      findAll: async () => [],
+      save: async (s: any) => s,
+      delete: async () => { },
+    };
+
+    const torrentIndexer = {
+      search: async () => [
+        {
+          title: '[SubsPlease] Frieren - 12 (1080p) [ABC123].mkv',
+          magnet: 'magnet:?xt=urn:btih:abc123&dn=test',
+          size: '1.4 GiB',
+          seeders: 176,
+          leechers: 11,
+          publishedAt: new Date(),
+        },
+      ],
+    };
+
     service = new EpisodeService(
-      episodeRepository,
-      subscriptionEpisodeRepository,
-      debridProvider,
+      episodeRepository,                // 1
+      subscriptionEpisodeRepository,    // 2
+      subscriptionRepository,           // 3 ← AJOUTÉ
+      serieRepository,                  // 4 ← AJOUTÉ
+      torrentIndexer,                   // 5 ← AJOUTÉ
+      debridProvider,                   // 6
     );
   });
 

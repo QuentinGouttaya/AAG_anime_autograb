@@ -1,0 +1,326 @@
+import { useCallback, useState } from 'react';
+import { searchAnimes } from '../api/anime';
+import { createSubscription } from '../api/subscriptions';
+import type { PageInfo, Serie } from '../types';
+
+const STATUS_LABELS: Record<string, string> = {
+  RELEASING: 'En diffusion',
+  FINISHED: 'Terminé',
+  NOT_YET_RELEASED: 'À venir',
+  CANCELLED: 'Annulé',
+  HIATUS: 'En pause',
+};
+
+const PLACEHOLDER =
+  'data:image/svg+xml,' +
+  encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="230" height="345">
+       <rect width="100%" height="100%" fill="#2a2a3a"/>
+       <text x="50%" y="50%" fill="#777" font-size="14" text-anchor="middle">No image</text>
+     </svg>`,
+  );
+
+type ApiErrorLike = {
+  response?: {
+    status?: number;
+    data?: {
+      message?: string;
+    };
+  };
+};
+
+function isApiError(value: unknown): value is ApiErrorLike {
+  return typeof value === 'object' && value !== null && 'response' in value;
+}
+
+function statusBadgeClass(status?: string): string {
+  return status === 'RELEASING' ? 'badge-active' : 'badge-inactive';
+}
+
+export function SearchPage() {
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState<Serie[]>([]);
+  const [pageInfo, setPageInfo] = useState<PageInfo | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [hasSearched, setHasSearched] = useState(false);
+
+  const [subscribedAnilistIds, setSubscribedAnilistIds] = useState<Set<number>>(
+    new Set(),
+  );
+  const [subscribingId, setSubscribingId] = useState<number | null>(null);
+
+  const [detailSerie, setDetailSerie] = useState<Serie | null>(null);
+  const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
+
+  const showToast = (msg: string, ok = true) => {
+    setToast({ msg, ok });
+    window.setTimeout(() => setToast(null), 3000);
+  };
+
+  const doSearch = useCallback(async (q: string, p: number) => {
+    if (q.trim().length < 2) return;
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const res = await searchAnimes(q.trim(), p, 20);
+      setResults(res.data);
+      setPageInfo(res.pageInfo);
+      setHasSearched(true);
+    } catch {
+      setError('Erreur lors de la recherche AniList.');
+      setResults([]);
+      setPageInfo(null);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    doSearch(query, 1);
+  };
+
+  const goToPage = (p: number) => {
+    doSearch(query, p);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleSubscribe = async (serie: Serie) => {
+    setSubscribingId(serie.anilistId);
+
+    try {
+      await createSubscription({
+        anilistId: serie.anilistId,
+        preferredFansub: [],
+        preferredResolution: '1080p',
+        minSeeders: 1,
+      });
+
+      setSubscribedAnilistIds((prev) => new Set(prev).add(serie.anilistId));
+      showToast(`Abonné à « ${serie.canonicalTitle} »`, true);
+    } catch (err) {
+      if (isApiError(err) && err.response?.status === 409) {
+        setSubscribedAnilistIds((prev) => new Set(prev).add(serie.anilistId));
+        showToast('Déjà abonné à cet animé', false);
+        return;
+      }
+
+      const message = isApiError(err)
+        ? err.response?.data?.message
+        : undefined;
+
+      showToast(message ?? "Erreur lors de l'abonnement", false);
+    } finally {
+      setSubscribingId(null);
+    }
+  };
+
+  return (
+    <main className="page search-page">
+      <h1>Recherche AniList</h1>
+
+      <form className="search-bar" onSubmit={handleSubmit}>
+        <input
+          className="input"
+          type="text"
+          placeholder="Ex : Frieren, Solo Leveling, One Piece…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+        <button className="btn-primary" type="submit" disabled={loading}>
+          {loading ? '…' : 'Rechercher'}
+        </button>
+      </form>
+
+      {error && <p className="error-text center">{error}</p>}
+      {loading && <p className="muted center">Chargement…</p>}
+
+      {!loading && results.length > 0 && (
+        <div className="search-grid">
+          {results.map((serie) => {
+            const isSubscribed = subscribedAnilistIds.has(serie.anilistId);
+            const isSubscribing = subscribingId === serie.anilistId;
+
+            return (
+              <article key={serie.anilistId} className="anime-card">
+                <img
+                  className="anime-cover"
+                  src={serie.coverImage || PLACEHOLDER}
+                  alt={serie.canonicalTitle}
+                  loading="lazy"
+                />
+
+                <div className="anime-body">
+                  <h3 className="anime-title" title={serie.canonicalTitle}>
+                    {serie.canonicalTitle}
+                  </h3>
+
+                  <div className="anime-badges">
+                    {serie.status && (
+                      <span
+                        className={`badge ${statusBadgeClass(serie.status)}`}
+                      >
+                        {STATUS_LABELS[serie.status] ?? serie.status}
+                      </span>
+                    )}
+
+                    {serie.format && (
+                      <span className="badge badge-inactive">
+                        {serie.format}
+                      </span>
+                    )}
+                  </div>
+
+                  <p className="anime-meta">
+                    {serie.episodes
+                      ? `${serie.episodes} ép.`
+                      : 'Ép. inconnu'}{' '}
+                    · AniList #{serie.anilistId}
+                  </p>
+
+                  {serie.genres && serie.genres.length > 0 && (
+                    <div className="anime-genres">
+                      {serie.genres.slice(0, 3).map((genre) => (
+                        <span key={genre} className="genre-tag">
+                          {genre}
+                        </span>
+                      ))}
+
+                      {serie.genres.length > 3 && (
+                        <span className="genre-tag">
+                          +{serie.genres.length - 3}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <div className="anime-actions">
+                  <button
+                    className="btn-primary btn-sub"
+                    type="button"
+                    disabled={isSubscribed || isSubscribing}
+                    onClick={() => handleSubscribe(serie)}
+                  >
+                    {isSubscribing
+                      ? '…'
+                      : isSubscribed
+                        ? '✓ Abonné'
+                        : "+ S'abonner"}
+                  </button>
+
+                  <button
+                    className="btn-ghost btn-detail"
+                    type="button"
+                    onClick={() => setDetailSerie(serie)}
+                    aria-label={`Voir les détails de ${serie.canonicalTitle}`}
+                  >
+                    ℹ️
+                  </button>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
+
+      {!loading && hasSearched && results.length === 0 && !error && (
+        <div className="empty-state">Aucun résultat pour « {query} ».</div>
+      )}
+
+      {!hasSearched && !loading && (
+        <div className="empty-state">
+          Tape un titre d’animé pour lancer la recherche.
+        </div>
+      )}
+
+      {pageInfo && pageInfo.lastPage > 1 && (
+        <div className="pagination">
+          <button
+            className="page-btn"
+            type="button"
+            disabled={pageInfo.currentPage <= 1}
+            onClick={() => goToPage(pageInfo.currentPage - 1)}
+          >
+            ← Précédent
+          </button>
+
+          <span className="page-info">
+            Page {pageInfo.currentPage} / {pageInfo.lastPage} (
+            {pageInfo.total} résultats)
+          </span>
+
+          <button
+            className="page-btn"
+            type="button"
+            disabled={!pageInfo.hasNextPage}
+            onClick={() => goToPage(pageInfo.currentPage + 1)}
+          >
+            Suivant →
+          </button>
+        </div>
+      )}
+
+      {detailSerie && (
+        <div className="modal-overlay" onClick={() => setDetailSerie(null)}>
+          <div
+            className="modal"
+            role="dialog"
+            aria-modal="true"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="modal-title">{detailSerie.canonicalTitle}</h2>
+
+            <div className="modal-row">
+              <span className="modal-label">AniList ID</span>
+              <span>#{detailSerie.anilistId}</span>
+            </div>
+
+            <div className="modal-row">
+              <span className="modal-label">Statut</span>
+              <span>
+                {STATUS_LABELS[detailSerie.status ?? ''] ??
+                  detailSerie.status ??
+                  '—'}
+              </span>
+            </div>
+
+            <div className="modal-row">
+              <span className="modal-label">Format</span>
+              <span>{detailSerie.format ?? '—'}</span>
+            </div>
+
+            <div className="modal-row">
+              <span className="modal-label">Épisodes</span>
+              <span>{detailSerie.episodes ?? '—'}</span>
+            </div>
+
+            <div className="modal-row">
+              <span className="modal-label">Genres</span>
+              <span>{detailSerie.genres?.join(', ') ?? '—'}</span>
+            </div>
+
+            <button
+              className="btn-primary modal-close"
+              type="button"
+              onClick={() => setDetailSerie(null)}
+            >
+              Fermer
+            </button>
+          </div>
+        </div>
+      )}
+
+      {toast && (
+        <div
+          className={`toast ${toast.ok ? 'toast-success' : 'toast-error'}`}
+        >
+          {toast.msg}
+        </div>
+      )}
+    </main>
+  );
+}

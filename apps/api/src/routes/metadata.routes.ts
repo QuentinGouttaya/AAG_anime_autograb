@@ -3,7 +3,9 @@ import { MetadataController } from '../controllers/metadata.controller.js';
 
 export function metadataRoutes(controller: MetadataController): Router {
   const router = Router();
+
+  router.get('/search', controller.searchAnime);
   router.get('/season', controller.getSeasonAnime);
+
   return router;
 }
-

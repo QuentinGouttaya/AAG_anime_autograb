@@ -21,6 +21,25 @@ export type Serie = {
   id: number;
   anilistId: number;
   canonicalTitle: string;
+  coverImage?: string;
+  episodeCount?: number | null;
+  status?: string;
+  format?: string;
+  genres?: string[];
+};
+
+// ── AJOUTÉ : pagination ──
+export type PageInfo = {
+  currentPage: number;
+  lastPage: number;
+  total: number;
+  hasNextPage: boolean;
+  perPage: number;
+};
+
+export type PaginatedResponse<T> = {
+  data: T[];
+  pageInfo: PageInfo;
 };
 
 export type EpisodeStatus = 'pending' | 'searching' | 'found' | 'added' | 'ready' | 'failed';

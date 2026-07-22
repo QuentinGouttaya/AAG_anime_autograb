@@ -1,4 +1,4 @@
-import { MetadataService } from "../metadata.service.js";
+import { MetadataService, PaginatedResult, PageInfo } from '../metadata.service.js';
 import { AnilistApiError } from './error.js';
 import type { Serie } from '../../../models/serie.js';
 import type { Episode } from '../../../models/episode.js';
@@ -11,36 +11,63 @@ interface AnilistMediaTitle {
   english: string | null;
   native: string;
 }
+
+// ── AJOUTÉ ──
+interface AnilistCoverImage {
+  large: string;
+  medium: string;
+  color: string | null;
+}
+
 interface AnilistAiringScheduleNode {
   episode: number;
   airingAt: number;
 }
+
 interface AnilistTag {
   id: number;
   name: string;
   isAdult: boolean;
 }
+
 interface AnilistMedia {
   id: number;
   title: AnilistMediaTitle;
+  coverImage: AnilistCoverImage;
   episodes: number | null;
-  isAdult: boolean;
+  status: string;
+  format: string;
   genres: string[];
+  isAdult: boolean;
   tags: AnilistTag[];
   airingSchedule: { nodes: AnilistAiringScheduleNode[] };
 }
+
+// ── AJOUTÉ ──
+interface AnilistPageInfo {
+  total: number;
+  currentPage: number;
+  lastPage: number;
+  hasNextPage: boolean;
+  perPage: number;
+}
+
 interface AnilistGraphQLResponse<T> {
   data: T;
   errors?: Array<{ message: string }>;
 }
 
 const ANILIST_ENDPOINT = 'https://graphql.anilist.co';
+
 const MEDIA_FIELDS = `
   id
   title { romaji english native }
+  coverImage { large medium color }
   episodes
-  isAdult
+  status
+  format
   genres
+  isAdult
   tags { id name isAdult }
   airingSchedule(perPage: 50) { nodes { episode airingAt } }
 `;
@@ -59,22 +86,41 @@ export class AnilistService implements MetadataService {
     if (res.status === 429 || res.status >= 500) {
       throw new AnilistApiError(`HTTP ${res.status}`, true, res.status);
     }
-
     if (!res.ok) {
       throw new AnilistApiError(`HTTP ${res.status}`, false, res.status);
     }
 
     const json = (await res.json()) as AnilistGraphQLResponse<T>;
-
     if (json.errors?.length) {
       throw new AnilistApiError(json.errors[0].message, false);
     }
-
     return json.data;
   }
-  //MAPPERS
+
+  // ── MAPPERS ──
+
   private toSerie(m: AnilistMedia): Serie {
-    return { id: 0, anilistId: m.id, canonicalTitle: m.title.english ?? m.title.romaji };
+    return {
+      id: 0,
+      anilistId: m.id,
+      canonicalTitle: m.title.english ?? m.title.romaji,
+      coverImage: m.coverImage?.large ?? m.coverImage?.medium ?? undefined,
+      episodeCount: m.episodes,     // ← RENOMMÉ
+      status: m.status,
+      format: m.format,
+      genres: m.genres,
+    };
+  }
+
+  // ── AJOUTÉ ──
+  private toPageInfo(p: AnilistPageInfo): PageInfo {
+    return {
+      currentPage: p.currentPage,
+      lastPage: p.lastPage,
+      total: p.total,
+      hasNextPage: p.hasNextPage,
+      perPage: p.perPage,
+    };
   }
 
   private toTags(media: AnilistMedia): Tag[] {
@@ -95,16 +141,31 @@ export class AnilistService implements MetadataService {
     };
   }
 
-  async searchAnime(title: string): Promise<Serie[]> {
+  // ── MODIFIÉ : pagination + pageInfo ──
+  async searchAnime(
+    title: string,
+    page: number = 1,
+    perPage: number = 20,
+  ): Promise<PaginatedResult<Serie>> {
     const query = `
-      query ($search: String!) {
-        Page(page: 1, perPage: 5) {
-          media(search: $search, type: ANIME) { ${MEDIA_FIELDS} }
+      query ($search: String!, $page: Int!, $perPage: Int!) {
+        Page(page: $page, perPage: $perPage) {
+          pageInfo { total currentPage lastPage hasNextPage perPage }
+          media(search: $search, type: ANIME, sort: SEARCH_MATCH) {
+            ${MEDIA_FIELDS}
+          }
         }
       }
     `;
-    const data = await this.AnilistRequest<{ Page: { media: AnilistMedia[] } }>(query, { search: title });
-    return data.Page.media.map((m) => this.toSerie(m));
+
+    const data = await this.AnilistRequest<{
+      Page: { media: AnilistMedia[]; pageInfo: AnilistPageInfo };
+    }>(query, { search: title, page, perPage });
+
+    return {
+      data: data.Page.media.map((m) => this.toSerie(m)),
+      pageInfo: this.toPageInfo(data.Page.pageInfo),
+    };
   }
 
   async getAnimeById(
@@ -114,7 +175,6 @@ export class AnilistService implements MetadataService {
       `query ($id: Int) { Media(id: $id, type: ANIME) { ${MEDIA_FIELDS} } }`;
 
     let data: { Media: AnilistMedia | null };
-
     try {
       data = await this.AnilistRequest<{ Media: AnilistMedia | null }>(
         query,
@@ -124,14 +184,12 @@ export class AnilistService implements MetadataService {
       if (error instanceof AnilistApiError && error.status === 404) {
         return null;
       }
-
       throw error;
     }
 
     if (!data.Media) return null;
 
     const serie = this.toSerie(data.Media);
-
     const episodes: Episode[] = data.Media.airingSchedule.nodes.map((node) => ({
       id: 0,
       serieId: serie.id,
@@ -151,16 +209,20 @@ export class AnilistService implements MetadataService {
       query ($season: MediaSeason, $year: Int, $page: Int) {
         Page(page: $page, perPage: 50) {
           pageInfo { hasNextPage }
-          media(season: $season, seasonYear: $year, type: ANIME, sort: POPULARITY_DESC) { ${MEDIA_FIELDS} }
+          media(season: $season, seasonYear: $year, type: ANIME, sort: POPULARITY_DESC) {
+            ${MEDIA_FIELDS}
+          }
         }
       }
     `;
+
     let page = 1;
     let all: Serie[] = [];
     while (true) {
-      const data = await this.AnilistRequest<{ Page: { media: AnilistMedia[]; pageInfo: { hasNextPage: boolean } } }>(
-        query, { season, year, page }
-      );
+      const data = await this.AnilistRequest<{
+        Page: { media: AnilistMedia[]; pageInfo: { hasNextPage: boolean } };
+      }>(query, { season, year, page });
+
       all = all.concat(data.Page.media.map((m) => this.toSerie(m)));
       if (!data.Page.pageInfo.hasNextPage) break;
       page++;
@@ -173,24 +235,24 @@ export class AnilistService implements MetadataService {
       query ($season: MediaSeason, $year: Int, $page: Int) {
         Page(page: $page, perPage: 50) {
           pageInfo { hasNextPage }
-          media(season: $season, seasonYear: $year, type: ANIME, sort: POPULARITY_DESC) { ${MEDIA_FIELDS} }
+          media(season: $season, seasonYear: $year, type: ANIME, sort: POPULARITY_DESC) {
+            ${MEDIA_FIELDS}
+          }
         }
       }
     `;
+
     let page = 1;
     const all: AnimeMetadata[] = [];
-
     while (true) {
-      const data = await this.AnilistRequest<{ Page: { media: AnilistMedia[]; pageInfo: { hasNextPage: boolean } } }>(
-        query,
-        { season, year, page },
-      );
+      const data = await this.AnilistRequest<{
+        Page: { media: AnilistMedia[]; pageInfo: { hasNextPage: boolean } };
+      }>(query, { season, year, page });
+
       all.push(...data.Page.media.map((m) => this.toAnimeMetadata(m)));
       if (!data.Page.pageInfo.hasNextPage) break;
       page++;
     }
-
     return all;
   }
-
 }

@@ -1,7 +1,7 @@
 import { Fragment, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { getSubscriptions, unsubscribe } from '../api/subscriptions';
-import { getEpisodes, resolveDownloadLink } from '../api/episodes';
+import { getSubscriptions, deleteSubscription } from '../api/subscriptions';
+import { getEpisodes, resolveDownloadLink, grabEpisode } from '../api/episodes';
 import type { Subscription } from '../types';
 
 type SortKey = 'createdAt' | 'minSeeders' | 'seriesId';
@@ -21,7 +21,7 @@ export function SubscriptionsPage() {
   });
 
   const removeMutation = useMutation({
-    mutationFn: unsubscribe,
+    mutationFn: deleteSubscription,
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['subscriptions'] });
     },
@@ -45,6 +45,8 @@ export function SubscriptionsPage() {
       const q = search.trim().toLowerCase();
       rows = rows.filter(
         (s) =>
+          // ← MODIFIÉ : recherche par titre de série aussi
+          (s.serie?.canonicalTitle ?? '').toLowerCase().includes(q) ||
           String(s.seriesId).includes(q) ||
           s.preferredFansub.some((f) => f.toLowerCase().includes(q)),
       );
@@ -78,7 +80,7 @@ export function SubscriptionsPage() {
       <div className="toolbar">
         <input
           className="input"
-          placeholder="Search series id or fansub..."
+          placeholder="Search by title, series id or fansub..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -127,7 +129,10 @@ export function SubscriptionsPage() {
           {filtered.map((s: Subscription) => (
             <Fragment key={s.id}>
               <tr>
-                <td>#{s.seriesId}</td>
+                {/* ← MODIFIÉ : afficher le titre au lieu de #seriesId */}
+                <td>
+                  {s.serie?.canonicalTitle ?? `Serie #${s.seriesId}`}
+                </td>
                 <td>{s.preferredFansub.join(', ') || '—'}</td>
                 <td>{s.preferredResolution}</td>
                 <td>{s.minSeeders}</td>
@@ -142,7 +147,7 @@ export function SubscriptionsPage() {
                     className="btn-primary"
                     onClick={() => setExpandedId(expandedId === s.id ? null : s.id)}
                   >
-                    {expandedId === s.id ? 'Close' : 'Prepare link'}
+                    {expandedId === s.id ? 'Close' : 'Episodes'}
                   </button>
                   <button className="btn-danger" onClick={() => removeMutation.mutate(s.id)}>
                     Unsubscribe
@@ -152,7 +157,7 @@ export function SubscriptionsPage() {
               {expandedId === s.id && (
                 <tr key={`${s.id}-resolve`}>
                   <td colSpan={7}>
-                    <ResolveLinkPanel subscription={s} />
+                    <EpisodePanel subscription={s} />
                   </td>
                 </tr>
               )}
@@ -166,7 +171,10 @@ export function SubscriptionsPage() {
   );
 }
 
-function ResolveLinkPanel({ subscription }: { subscription: Subscription }) {
+// ── Panneau épisode : Grab auto + Resolve manuel ──
+
+function EpisodePanel({ subscription }: { subscription: Subscription }) {
+  const queryClient = useQueryClient();
   const [episodeId, setEpisodeId] = useState<number | null>(null);
   const [magnet, setMagnet] = useState('');
 
@@ -180,9 +188,21 @@ function ResolveLinkPanel({ subscription }: { subscription: Subscription }) {
     [episodes, subscription.seriesId],
   );
 
+  // ── Grab automatique (Nyaa → Premiumize) ──
+  const grabMutation = useMutation({
+    mutationFn: () => grabEpisode(subscription.id, episodeId as number),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['episodes'] });
+    },
+  });
+
+  // ── Resolve manuel (fallback) ──
   const resolveMutation = useMutation({
     mutationFn: () =>
       resolveDownloadLink(subscription.id, episodeId as number, magnet.trim()),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['episodes'] });
+    },
   });
 
   if (isPending) return <p>Loading episodes...</p>;
@@ -190,6 +210,7 @@ function ResolveLinkPanel({ subscription }: { subscription: Subscription }) {
 
   return (
     <div className="resolve-panel">
+      {/* Sélection d'épisode */}
       <select
         className="input"
         value={episodeId ?? ''}
@@ -203,6 +224,19 @@ function ResolveLinkPanel({ subscription }: { subscription: Subscription }) {
         ))}
       </select>
 
+      {/* ── Grab automatique ── */}
+      <button
+        className="btn-primary"
+        disabled={!episodeId || grabMutation.isPending}
+        onClick={() => grabMutation.mutate()}
+      >
+        {grabMutation.isPending ? '🧲 Grabbing...' : '🧲 Grab'}
+      </button>
+
+      {/* ── Séparateur ── */}
+      <span className="muted">or manual:</span>
+
+      {/* ── Resolve manuel (fallback) ── */}
       <input
         className="input"
         placeholder="Magnet or torrent URL"
@@ -211,12 +245,24 @@ function ResolveLinkPanel({ subscription }: { subscription: Subscription }) {
       />
 
       <button
-        className="btn-primary"
+        className="btn-ghost"
         disabled={!episodeId || !magnet.trim() || resolveMutation.isPending}
         onClick={() => resolveMutation.mutate()}
       >
         {resolveMutation.isPending ? 'Resolving...' : 'Resolve link'}
       </button>
+
+      {/* ── Résultats ── */}
+      {grabMutation.isSuccess && (
+        <span className="badge badge-active">
+          ✓ {grabMutation.data.torrent.title} ({grabMutation.data.torrent.seeders} seeders)
+        </span>
+      )}
+      {grabMutation.isError && (
+        <span className="badge badge-inactive">
+          Grab failed: {(grabMutation.error as Error)?.message ?? 'Unknown error'}
+        </span>
+      )}
 
       {resolveMutation.isSuccess && (
         <span className="badge badge-active">Status: {resolveMutation.data.status}</span>
@@ -225,7 +271,9 @@ function ResolveLinkPanel({ subscription }: { subscription: Subscription }) {
         <span className="badge badge-inactive">Failed to resolve link.</span>
       )}
 
-      {seriesEpisodes.length === 0 && <p className="empty-state">No episodes found for this series yet.</p>}
+      {seriesEpisodes.length === 0 && (
+        <p className="empty-state">No episodes found for this series yet.</p>
+      )}
     </div>
   );
 }

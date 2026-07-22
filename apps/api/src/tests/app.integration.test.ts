@@ -13,6 +13,8 @@ import { AnilistService } from '../services/metadata/anilist/service.js';
 import { SubscriptionService } from '../services/subscription/subscription.service.js';
 import { SubscriptionController } from '../controllers/subscription.controller.js';
 import { EpisodeController } from '../controllers/episode.controller.js';
+import { MetadataController } from '../controllers/metadata.controller.js';
+
 
 describe('App integration', () => {
   let server: Server;
@@ -28,12 +30,27 @@ describe('App integration', () => {
     const debridProvider: DebridProvider = {
       getDirectDownloadLink: async () => [],
     };
+    const torrentIndexer = {
+      search: async () => [
+        {
+          title: '[SubsPlease] Frieren - 12 (1080p) [ABC123].mkv',
+          magnet: 'magnet:?xt=urn:btih:abc123&dn=test',
+          size: '1.4 GiB',
+          seeders: 176,
+          leechers: 11,
+          publishedAt: new Date(),
+        },
+      ],
+    };
 
     const anilistService = new AnilistService();
 
     const episodeService = new EpisodeService(
       episodeRepository,
       subscriptionEpisodeRepository,
+      subscriptionRepository,
+      serieRepository,
+      torrentIndexer,       // ← maintenant défini
       debridProvider,
     );
 
@@ -48,9 +65,13 @@ describe('App integration', () => {
       subscriptionService,
     );
 
+
+    const metadataController = new MetadataController(new AnilistService());
+
     const dependencies: AppDependencies = {
       episodeController,
       subscriptionController,
+      metadataController,           // ← AJOUTÉ
     };
 
     const app = createApp(dependencies);

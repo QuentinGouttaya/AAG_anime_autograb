@@ -2,9 +2,15 @@ import express, { type Request, type Response, type NextFunction } from 'express
 import type { AppDependencies } from './dependencies/app_dependencies.js';
 import { subscriptionRoutes } from './routes/subscription.routes.js';
 import { episodeRoutes } from './routes/episode.routes.js';
+import { metadataRoutes } from './routes/metadata.routes.js';   // ← AJOUTÉ
 
-export function createApp({ subscriptionController, episodeController }: AppDependencies) {
+export function createApp({
+  subscriptionController,
+  episodeController,
+  metadataController,                                            // ← AJOUTÉ
+}: AppDependencies) {
   const app = express();
+
   app.disable('x-powered-by');
   app.use(express.json());
 
@@ -15,6 +21,7 @@ export function createApp({ subscriptionController, episodeController }: AppDepe
   // routes
   app.use('/api', subscriptionRoutes(subscriptionController));
   app.use('/api', episodeRoutes(episodeController));
+  app.use('/api/metadata', metadataRoutes(metadataController));  // ← AJOUTÉ
 
   // 404
   app.use((_req, res) => {
