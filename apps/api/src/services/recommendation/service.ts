@@ -9,12 +9,12 @@ import { toVector } from './vectorize.js';
 
 export interface RecommendationParams {
   catalog: AnimeMetadata[];
-  likedAnilistIds: number[];   // favoris localStorage envoyés par le front
+  likedAnilistIds: number[];
+  likedItemsOutsideCatalog?: AnimeMetadata[];
   excludedAnilistIds?: Set<number>;
   allowAdult?: boolean;
   limit?: number;
 }
-
 // Pipeline identique au grab : filter (chain) → score (strategy via factory)
 // → sort (strategy). Le scoring ne s'appuie QUE sur les tags et leurs
 // combinaisons — aucun autre attribut (popularité, note...) n'entre dans
@@ -27,8 +27,8 @@ export class RecommendationService {
     });
 
     const limit = params.limit ?? 20;
-    const liked = params.catalog.filter((a) => params.likedAnilistIds.includes(a.anilistId));
-
+    const likedFromCatalog = params.catalog.filter((a) => params.likedAnilistIds.includes(a.anilistId));
+    const liked = [...likedFromCatalog, ...(params.likedItemsOutsideCatalog ?? [])];
     if (liked.length === 0) {
       // Pas de profil de tags à comparer : ordre neutre (ordre du catalogue)
       return eligible.slice(0, limit).map((a) => ({ ...a, score: 0 }));

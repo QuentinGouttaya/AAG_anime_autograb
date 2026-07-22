@@ -26,6 +26,7 @@ export interface MetadataService {
   ): Promise<PaginatedResult<SerieWithTags>>;
 
   getAnimeById(id: number): Promise<(Serie & { episodes: Episode[]; tags: Tag[] }) | null>;
+  getAnimeMetadataById(id: number): Promise<AnimeMetadata | null>;
   getSeasonAnime(season: Season, year: number): Promise<Serie[]>;
   getSeasonMetadata(season: Season, year: number): Promise<AnimeMetadata[]>;
 }

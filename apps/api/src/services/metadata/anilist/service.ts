@@ -196,6 +196,23 @@ export class AnilistService implements MetadataService {
     };
   }
 
+  async getAnimeMetadataById(anilistId: number): Promise<AnimeMetadata | null> {
+    const query =
+      `query ($id: Int) { Media(id: $id, type: ANIME) { ${MEDIA_FIELDS} } }`;
+
+    let data: { Media: AnilistMedia | null };
+    try {
+      data = await this.AnilistRequest<{ Media: AnilistMedia | null }>(query, { id: anilistId });
+    } catch (error) {
+      if (error instanceof AnilistApiError && error.status === 404) {
+        return null;
+      }
+      throw error;
+    }
+
+    return data.Media ? this.toAnimeMetadata(data.Media) : null;
+  }
+
   // airingSchedule ne couvre fiablement que les diffusions récentes/en cours :
   // pour les vieilles séries terminées (Naruto, Bleach...), AniList n'a
   // souvent aucune entrée par épisode. On construit donc la liste à partir

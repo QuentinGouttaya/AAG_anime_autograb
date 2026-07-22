@@ -30,6 +30,7 @@ describe('SubscriptionService.create', () => {
       }),
       getSeasonAnime: async () => [],
       getSeasonMetadata: async () => [],
+      getAnimeMetadataById: async () => null,
       getAnimeById: async (id: number) => ({
         id: 0,
         anilistId: id,
