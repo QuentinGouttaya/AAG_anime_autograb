@@ -19,6 +19,7 @@ import { scoreTorrents, type ScoredTorrent } from '../scoring/scoring.js';
 import { ScoringFactory } from '../scoring/factory/scoring.js';
 import { ScoreDescendingSort } from '../sort/sort.js';
 import { filterTorrents } from '../filter/torrent/filter.js';
+
 // ── Résultat du grab ──
 export interface GrabResult {
   subscriptionEpisode: SubscriptionEpisode;
@@ -112,21 +113,24 @@ export class EpisodeService {
 
     // Romaji d'abord : c'est le nommage utilisé par les fansubs sur Nyaa,
     // le titre anglais AniList ne matche presque jamais leurs releases.
-    const queriesToTry = [
-      cleanRomaji ? `${cleanRomaji} ${episodeNum}` : null,
-      `${cleanTitle} ${episodeNum}`,
-      bareFranchise && bareFranchise !== cleanTitle ? `${bareFranchise} ${episodeNum}` : null,
-    ].filter(Boolean) as string[];
+    const queriesToTry: { term: string; query: string }[] = [
+      cleanRomaji ? { term: cleanRomaji, query: `${cleanRomaji} ${episodeNum}` } : null,
+      { term: cleanTitle, query: `${cleanTitle} ${episodeNum}` },
+      bareFranchise && bareFranchise !== cleanTitle
+        ? { term: bareFranchise, query: `${bareFranchise} ${episodeNum}` }
+        : null,
+    ].filter((q): q is { term: string; query: string } => q !== null);
     let valid: Torrent[] = [];
-    let lastQuery = queriesToTry[0] || serie.canonicalTitle;
+    let lastQuery = queriesToTry[0]?.query || serie.canonicalTitle;
 
-    for (const query of queriesToTry) {
+    for (const { term, query } of queriesToTry) {
       lastQuery = query;
       const results = await this.torrentIndexer.search(query);
 
       valid = filterTorrents(results, {
         minSeeders: subscription.minSeeders,
         preferredResolution: subscription.preferredResolution,
+        expectedTitle: term,
       });
 
       console.info(
@@ -140,7 +144,6 @@ export class EpisodeService {
     }
     if (valid.length === 0) {
       await this.updateStatus(subscriptionId, episodeId, 'failed');
-
 
       throw new NoTorrentFoundError(
         lastQuery,
