@@ -1,8 +1,16 @@
 import { apiClient } from './client';
-import type { Episode, SubscriptionEpisode } from '../types';
+import type { DetailedEpisode, Episode, SubscriptionEpisode } from '../types';
 
 export async function getEpisodes(): Promise<Episode[]> {
   const { data } = await apiClient.get<Episode[]>('/episodes');
+  return Array.isArray(data) ? data : [];
+}
+
+
+export async function getEpisodesBySerieId(seriesId: number): Promise<DetailedEpisode[]> {
+  const { data } = await apiClient.get<DetailedEpisode[]>('/episodes', {
+    params: { seriesId }
+  });
   return Array.isArray(data) ? data : [];
 }
 

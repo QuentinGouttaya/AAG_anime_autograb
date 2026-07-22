@@ -104,6 +104,7 @@ export class AnilistService implements MetadataService {
       id: 0,
       anilistId: m.id,
       canonicalTitle: m.title.english ?? m.title.romaji,
+      romajiTitle: m.title.romaji,
       coverImage: m.coverImage?.large ?? m.coverImage?.medium ?? undefined,
       episodeCount: m.episodes,     // ← RENOMMÉ
       status: m.status,

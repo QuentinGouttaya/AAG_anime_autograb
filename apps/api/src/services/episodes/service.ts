@@ -15,6 +15,7 @@ import {
   NoTorrentFoundError
 } from './error.js';
 import type { CreatePendingEpisodeInput } from './types.js';
+import { filterTorrents } from '../filter/torrent/filter.js';
 
 // ── Résultat du grab ──
 export interface GrabResult {
@@ -102,22 +103,49 @@ export class EpisodeService {
 
     // 4. Construire la query de recherche Nyaa
     const episodeNum = String(episode.episodeNumber).padStart(2, '0');
-    const query = `${serie.canonicalTitle} ${episodeNum}`;
 
-    // 5. Chercher sur Nyaa
-    const results = await this.torrentIndexer.search(query);
+    // 1. Clean up the titles (remove " II", " Season 2", etc.)
+    const cleanTitle = serie.canonicalTitle.replace(/\s*(II|III|IV|2nd Season|Season 2|Part 2)$/i, '').trim();
+    const cleanRomaji = serie.romajiTitle?.replace(/\s*(II|III|IV|2nd Season|Season 2|Part 2)$/i, '').trim();
 
-    // 6. Filtrer selon les préférences de la subscription
-    const valid = this.filterTorrents(results, {
+    // 2. Build queries. 
+    // Note: I removed the hardcoded "S02E" because it will fail for Season 1 or Season 3 shows.
+    // Just searching the clean title + episode number is usually enough for Nyaa.
+    const queriesToTry = [
+      `${cleanTitle} ${episodeNum}`,
+      cleanRomaji ? `${cleanRomaji} ${episodeNum}` : null,
+    ].filter(Boolean) as string[];
+
+    let results: Torrent[] = [];
+    let lastQuery = queriesToTry[0] || serie.canonicalTitle; // Fallback for error message
+
+    // 3. Search Nyaa sequentially
+    for (const query of queriesToTry) {
+      lastQuery = query; // Update this so we know what query finally failed
+      results = await this.torrentIndexer.search(query);
+
+      if (results.length > 0) {
+        break; // Stop as soon as we find something!
+      }
+    }
+
+    // 4. Apply your Chain of Responsibility filter here
+    const valid = filterTorrents(results, {
       minSeeders: subscription.minSeeders,
       preferredResolution: subscription.preferredResolution,
     });
 
+    // 5. Handle failure
     if (valid.length === 0) {
       await this.updateStatus(subscriptionId, episodeId, 'failed');
-      throw new NoTorrentFoundError(query, subscription.minSeeders, subscription.preferredResolution);
-    }
 
+      // Use `lastQuery` instead of `query` to avoid the out-of-scope error
+      throw new NoTorrentFoundError(
+        lastQuery,
+        subscription.minSeeders,
+        subscription.preferredResolution
+      );
+    }
     // 7. Prendre le 1er résultat (M1 — pas de scoring)
     const best = valid[0];
 

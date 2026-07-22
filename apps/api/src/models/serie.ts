@@ -5,6 +5,7 @@ export type Serie = {
   id: number;
   anilistId: number;
   canonicalTitle: string;
+  romajiTitle?: string;
   coverImage?: string;
   episodeCount?: number | null;   // ← RENOMMÉ (était "episodes")
   status?: string;

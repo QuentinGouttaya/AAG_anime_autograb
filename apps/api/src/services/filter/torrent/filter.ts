@@ -23,10 +23,25 @@ class ResolutionFilter extends AbstractFilter<Torrent> {
   }
 
   protected check(torrent: Torrent): boolean {
-    return torrent.title.toLowerCase().includes(this.resolution.toLowerCase());
+    const res = this.resolution.toLowerCase();
+    const title = torrent.title.toLowerCase();
+
+    // Handle 1080p variations (FHD, 1920x1080, etc.)
+    if (res.includes('1080')) {
+      return /1080p|1920x1080|fhd|1080/.test(title);
+    }
+    // Handle 720p variations
+    if (res.includes('720')) {
+      return /720p|1280x720|hd|720/.test(title);
+    }
+    // Handle 4K/2160p variations
+    if (res.includes('2160') || res.includes('4k')) {
+      return /2160p|4k|uhd|3840x2160/.test(title);
+    }
+
+    return title.includes(res);
   }
 }
-
 export function buildTorrentFilterChain(
   params: TorrentFilterParams,
 ): FilterHandler<Torrent> {

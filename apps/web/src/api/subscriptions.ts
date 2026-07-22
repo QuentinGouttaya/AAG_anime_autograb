@@ -1,8 +1,17 @@
 import { apiClient } from './client';
 import type { CreateSubscriptionInput, SubscriptionWithSerie } from '../types';
 
-export async function getSubscriptions(): Promise<SubscriptionWithSerie[]> {
-  const { data } = await apiClient.get<SubscriptionWithSerie[]>('/subscriptions');
+// Updated to accept parameters for backend filtering/sorting
+export async function getSubscriptions(params?: {
+  status?: string;
+  resolution?: string;
+  search?: string;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
+}): Promise<SubscriptionWithSerie[]> {
+  const { data } = await apiClient.get<SubscriptionWithSerie[]>('/subscriptions', {
+    params
+  });
   return Array.isArray(data) ? data : [];
 }
 

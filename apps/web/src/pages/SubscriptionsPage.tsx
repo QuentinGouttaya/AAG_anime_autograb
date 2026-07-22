@@ -1,18 +1,10 @@
 import { Fragment, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { deleteSubscription, getSubscriptions } from '../api/subscriptions';
-import { getEpisodes, resolveDownloadLink, grabEpisode } from '../api/episodes';
-import type { Episode, SubscriptionWithSerie } from '../types';
+import type { SubscriptionWithSerie } from '../types';
+import { EpisodePanel } from './composants/EpisodePanel';
 
 type SortKey = 'createdAt' | 'minSeeders' | 'seriesTitle' | 'episodeCount';
-
-function compareText(a: string, b: string, dir: 'asc' | 'desc') {
-  return a.localeCompare(b, undefined, { sensitivity: 'base', numeric: true }) * (dir === 'asc' ? 1 : -1);
-}
-
-function compareNumber(a: number, b: number, dir: 'asc' | 'desc') {
-  return (a - b) * (dir === 'asc' ? 1 : -1);
-}
 
 export function SubscriptionsPage() {
   const queryClient = useQueryClient();
@@ -23,26 +15,20 @@ export function SubscriptionsPage() {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [expandedId, setExpandedId] = useState<number | null>(null);
 
+  // 1. Pass all state to the backend via the query function
   const { data, isPending, error } = useQuery({
-    queryKey: ['subscriptions'],
-    queryFn: getSubscriptions,
-  });
-
-  const { data: episodesData } = useQuery({
-    queryKey: ['episodes'],
-    queryFn: getEpisodes,
+    queryKey: ['subscriptions', statusFilter, resolutionFilter, search, sortKey, sortDir],
+    queryFn: () =>
+      getSubscriptions({
+        status: statusFilter !== 'all' ? statusFilter : undefined,
+        resolution: resolutionFilter !== 'all' ? resolutionFilter : undefined,
+        search: search.trim() || undefined,
+        sortBy: sortKey,
+        sortOrder: sortDir,
+      }),
   });
 
   const subscriptions = useMemo<SubscriptionWithSerie[]>(() => (Array.isArray(data) ? data : []), [data]);
-  const episodes = useMemo<Episode[]>(() => (Array.isArray(episodesData) ? episodesData : []), [episodesData]);
-
-  const episodeCountBySeries = useMemo(() => {
-    const counts = new Map<number, number>();
-    for (const episode of episodes) {
-      counts.set(episode.serieId, (counts.get(episode.serieId) ?? 0) + 1);
-    }
-    return counts;
-  }, [episodes]);
 
   const removeMutation = useMutation({
     mutationFn: deleteSubscription,
@@ -50,54 +36,6 @@ export function SubscriptionsPage() {
       await queryClient.invalidateQueries({ queryKey: ['subscriptions'] });
     },
   });
-
-  const resolutions = useMemo(
-    () => Array.from(new Set(subscriptions.map((s) => s.preferredResolution).filter(Boolean))).sort(),
-    [subscriptions],
-  );
-
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-
-    return subscriptions
-      .filter((s) => {
-        if (statusFilter !== 'all' && (statusFilter === 'active') !== s.active) {
-          return false;
-        }
-        if (resolutionFilter !== 'all' && s.preferredResolution !== resolutionFilter) {
-          return false;
-        }
-        if (!q) {
-          return true;
-        }
-
-        const title = s.serie?.canonicalTitle ?? `Serie #${s.seriesId}`;
-        const fansubs = Array.isArray(s.preferredFansub) ? s.preferredFansub : [];
-
-        return (
-          title.toLowerCase().includes(q) ||
-          String(s.seriesId).includes(q) ||
-          String(s.serie?.anilistId ?? '').includes(q) ||
-          fansubs.some((f) => f.toLowerCase().includes(q))
-        );
-      })
-      .sort((a, b) => {
-        if (sortKey === 'createdAt') {
-          return compareNumber(new Date(a.createdAt).getTime(), new Date(b.createdAt).getTime(), sortDir);
-        }
-        if (sortKey === 'minSeeders') {
-          return compareNumber(a.minSeeders, b.minSeeders, sortDir);
-        }
-        if (sortKey === 'episodeCount') {
-          return compareNumber(
-            episodeCountBySeries.get(a.seriesId) ?? 0,
-            episodeCountBySeries.get(b.seriesId) ?? 0,
-            sortDir,
-          );
-        }
-        return compareText(a.serie?.canonicalTitle ?? `Serie #${a.seriesId}`, b.serie?.canonicalTitle ?? `Serie #${b.seriesId}`, sortDir);
-      });
-  }, [subscriptions, statusFilter, resolutionFilter, search, sortKey, sortDir, episodeCountBySeries]);
 
   const toggleSort = (key: SortKey) => {
     if (key === sortKey) {
@@ -118,7 +56,7 @@ export function SubscriptionsPage() {
       <div className="toolbar">
         <input
           className="input"
-          placeholder="Search by title, AniList ID, series ID or fansub..."
+          placeholder="Search by title, AniList ID..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -131,9 +69,9 @@ export function SubscriptionsPage() {
 
         <select className="input" value={resolutionFilter} onChange={(e) => setResolutionFilter(e.target.value)}>
           <option value="all">All resolutions</option>
-          {resolutions.map((r) => (
-            <option key={r} value={r}>{r}</option>
-          ))}
+          <option value="1080p">1080p</option>
+          <option value="720p">720p</option>
+          <option value="2160p">2160p</option>
         </select>
       </div>
 
@@ -159,14 +97,15 @@ export function SubscriptionsPage() {
           </tr>
         </thead>
         <tbody>
-          {filtered.map((s) => (
+          {subscriptions.map((s) => (
             <Fragment key={s.id}>
               <tr>
                 <td>{s.serie?.canonicalTitle ?? `Serie #${s.seriesId}`}</td>
                 <td>{Array.isArray(s.preferredFansub) && s.preferredFansub.length > 0 ? s.preferredFansub.join(', ') : '—'}</td>
                 <td>{s.preferredResolution}</td>
                 <td>{s.minSeeders}</td>
-                <td>{episodeCountBySeries.get(s.seriesId) ?? 0}</td>
+                {/* Note: Ensure your backend GET /subscriptions returns episodeCount, otherwise display '—' */}
+                <td>{s.episodeCount ?? '—'}</td>
                 <td>
                   <span className={`badge ${s.active ? 'badge-active' : 'badge-inactive'}`}>
                     {s.active ? 'Active' : 'Inactive'}
@@ -185,7 +124,7 @@ export function SubscriptionsPage() {
               {expandedId === s.id && (
                 <tr>
                   <td colSpan={8}>
-                    <EpisodePanel subscription={s} allEpisodes={episodes} />
+                    <EpisodePanel subscription={s} />
                   </td>
                 </tr>
               )}
@@ -194,100 +133,7 @@ export function SubscriptionsPage() {
         </tbody>
       </table>
 
-      {filtered.length === 0 && <p className="empty-state">No subscriptions match your filters.</p>}
+      {subscriptions.length === 0 && <p className="empty-state">No subscriptions match your filters.</p>}
     </main>
-  );
-}
-
-function EpisodePanel({ subscription, allEpisodes }: { subscription: SubscriptionWithSerie; allEpisodes: Episode[] }) {
-  const queryClient = useQueryClient();
-  const [episodeId, setEpisodeId] = useState<number | null>(null);
-  const [magnet, setMagnet] = useState('');
-
-  const seriesEpisodes = useMemo(
-    () =>
-      allEpisodes
-        .filter((e) => e.serieId === subscription.seriesId)
-        .sort((a, b) => a.episodeNumber - b.episodeNumber),
-    [allEpisodes, subscription.seriesId],
-  );
-
-  const selectedEpisode = useMemo(
-    () => seriesEpisodes.find((e) => e.id === episodeId) ?? null,
-    [seriesEpisodes, episodeId],
-  );
-
-  const grabMutation = useMutation({
-    mutationFn: () => grabEpisode(subscription.id, episodeId as number),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['episodes'] });
-    },
-  });
-
-  const resolveMutation = useMutation({
-    mutationFn: () => resolveDownloadLink(subscription.id, episodeId as number, magnet.trim()),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['episodes'] });
-    },
-  });
-
-  return (
-    <div className="resolve-panel">
-      <select
-        className="input"
-        value={episodeId ?? ''}
-        onChange={(e) => setEpisodeId(e.target.value ? Number(e.target.value) : null)}
-      >
-        <option value="">Select episode...</option>
-        {seriesEpisodes.map((ep) => (
-          <option key={ep.id} value={ep.id}>
-            Episode {ep.episodeNumber}{ep.airedAt ? ` · ${new Date(ep.airedAt).toLocaleDateString()}` : ''}
-          </option>
-        ))}
-      </select>
-
-      <button className="btn-primary" disabled={!episodeId || grabMutation.isPending} onClick={() => grabMutation.mutate()}>
-        {grabMutation.isPending ? '🧲 Grabbing...' : '🧲 Grab'}
-      </button>
-
-      <span className="muted">or manual:</span>
-
-      <input
-        className="input"
-        placeholder="Magnet or torrent URL"
-        value={magnet}
-        onChange={(e) => setMagnet(e.target.value)}
-      />
-
-      <button
-        className="btn-ghost"
-        disabled={!episodeId || !magnet.trim() || resolveMutation.isPending}
-        onClick={() => resolveMutation.mutate()}
-      >
-        {resolveMutation.isPending ? 'Resolving...' : 'Resolve link'}
-      </button>
-
-      {selectedEpisode && (
-        <span className="badge badge-inactive">
-          Selected: {subscription.serie?.canonicalTitle ?? `Serie #${subscription.seriesId}`} · Episode {selectedEpisode.episodeNumber}
-        </span>
-      )}
-
-      {grabMutation.isSuccess && (
-        <span className="badge badge-active">
-          ✓ {grabMutation.data.torrent.title} ({grabMutation.data.torrent.seeders} seeders)
-        </span>
-      )}
-      {grabMutation.isError && (
-        <span className="badge badge-inactive">
-          Grab failed: {(grabMutation.error as Error)?.message ?? 'Unknown error'}
-        </span>
-      )}
-
-      {resolveMutation.isSuccess && <span className="badge badge-active">Status: {resolveMutation.data.status}</span>}
-      {resolveMutation.isError && <span className="badge badge-inactive">Failed to resolve link.</span>}
-
-      {seriesEpisodes.length === 0 && <p className="empty-state">No episodes found for this series yet.</p>}
-    </div>
   );
 }
