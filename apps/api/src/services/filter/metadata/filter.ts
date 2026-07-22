@@ -4,10 +4,16 @@ import { TagMatchMode, GenreMatchMode } from '../../../models/match_modes.js';
 
 export interface AnimeMetadata {
   anilistId: number;
+  title?: string;
   isAdult: boolean;
   episodes: number;
   tags: string[];   // tag names AniList
   genres: string[]; // genres AniList
+  popularity?: number;
+  averageScore?: number;
+  year?: number;
+  // rank AniList (0-100) par tag : pertinence du tag pour CET anime
+  tagRanks?: Record<string, number>;
 }
 
 export interface MetadataFilterParams {

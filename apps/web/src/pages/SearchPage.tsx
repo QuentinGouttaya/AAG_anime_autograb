@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { searchAnimes } from '../api/anime';
 import { createSubscription } from '../api/subscriptions';
+import { getFavorites, toggleFavorite } from '../api/favorites';
 import type { PageInfo, Serie } from '../types';
 
 const STATUS_LABELS: Record<string, string> = {
@@ -39,6 +40,7 @@ export function SearchPage() {
   const [detailSerie, setDetailSerie] = useState<Serie | null>(null);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
   const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set());
+  const [favorites, setFavorites] = useState<number[]>(getFavorites());
 
   const showToast = (msg: string, ok = true) => {
     setToast({ msg, ok });
@@ -187,6 +189,7 @@ export function SearchPage() {
           {safeResults.map((serie) => {
             const isSubscribed = subscribedAnilistIds.has(serie.anilistId);
             const isSubscribing = subscribingId === serie.anilistId;
+            const isFav = favorites.includes(serie.anilistId);
             const genres = Array.isArray(serie.genres) ? serie.genres : [];
             const visibleTags = (serie.tags ?? []).filter((t) => !t.isAdult);
 
@@ -256,6 +259,17 @@ export function SearchPage() {
                       onClick={() => void handleSubscribe(serie)}
                     >
                       {isSubscribing ? '…' : isSubscribed ? '✓ Abonné' : "+ S'abonner"}
+                    </button>
+                    <button
+                      type="button"
+                      className={`shrink-0 rounded-md border px-2.5 py-1.5 text-xs transition-colors ${isFav
+                          ? 'border-accent bg-accent/15 text-accent'
+                          : 'border-white/10 text-slate-300 hover:border-accent hover:text-accent'
+                        }`}
+                      onClick={() => setFavorites(toggleFavorite(serie.anilistId))}
+                      aria-label={`${isFav ? 'Retirer' : 'Ajouter'} ${serie.canonicalTitle} des favoris`}
+                    >
+                      {isFav ? '♥' : '♡'}
                     </button>
                     <button
                       type="button"

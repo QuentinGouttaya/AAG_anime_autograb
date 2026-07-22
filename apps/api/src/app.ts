@@ -3,6 +3,8 @@ import type { AppDependencies } from './dependencies/app_dependencies.js';
 import { subscriptionRoutes } from './routes/subscription.routes.js';
 import { episodeRoutes } from './routes/episode.routes.js';
 import { metadataRoutes } from './routes/metadata.routes.js';
+import { recommendationController } from './controllers/recommendation.controller.js';
+import { recommendationRoutes } from './routes/recommendation.routes.js';
 import cors from 'cors';
 
 export function createApp({
@@ -25,7 +27,7 @@ export function createApp({
   app.use('/api', subscriptionRoutes(subscriptionController));
   app.use('/api', episodeRoutes(episodeController));
   app.use('/api/metadata', metadataRoutes(metadataController));  // ← AJOUTÉ
-
+  app.use('/api', recommendationRoutes(recommendationController));
   // 404
   app.use((_req, res) => {
     res.status(404).json({ error: 'Not found' });

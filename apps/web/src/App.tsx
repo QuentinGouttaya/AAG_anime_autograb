@@ -1,6 +1,8 @@
 import { createBrowserRouter, RouterProvider, Outlet, NavLink } from 'react-router-dom';
 import { SubscriptionsPage } from './pages/SubscriptionsPage';
 import { SearchPage } from './pages/SearchPage';
+import { RecommendationsPage } from './pages/RecommendationsPage';
+
 
 function navClass({ isActive }: { isActive: boolean }) {
   return `px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${isActive ? 'bg-surface-2 text-white' : 'text-slate-400 hover:text-white'
@@ -17,6 +19,7 @@ function Layout() {
             <span className="text-sm font-semibold">Anime AutoGrab</span>
           </NavLink>
           <nav className="flex gap-1">
+            <NavLink to="/recommendations" className={navClass}>Recommandations</NavLink>
             <NavLink to="/subscriptions" className={navClass}>Abonnements</NavLink>
             <NavLink to="/search" className={navClass}>Recherche</NavLink>
           </nav>
@@ -34,6 +37,7 @@ const router = createBrowserRouter([
       { path: '/', element: <SubscriptionsPage /> },
       { path: '/subscriptions', element: <SubscriptionsPage /> },
       { path: '/search', element: <SearchPage /> },
+      { path: '/recommendations', element: <RecommendationsPage /> },
     ],
   },
 ]);

@@ -1,12 +1,11 @@
 // src/services/recommendation/recommendation.service.ts
 import type { AnimeMetadata } from '../filter/metadata/filter.js';
 import { filterMetadataCandidates } from '../filter/metadata/filter.js';
-import { buildBarycenter } from '../scoring/barycenter.strategy.js';
-import { ScoringFactory } from '../scoring/scoring.factory.js';
-import { scoreItems } from '../scoring/torrent/score.js';
-import type { Scored } from '../scoring/scoring.strategy.js';
+import { buildBarycenter } from '../scoring/barycenter/strategy.js';
+import { ScoringFactory } from '../scoring/factory/scoring.js';
+import { scoreItems, type Scored } from '../scoring/scoring.js';
 import { ScoreDescendingSort } from '../sort/sort.js';
-import { buildVectorizationContext, toVector } from './vectorize.js';
+import { toVector } from './vectorize.js';
 
 export interface RecommendationParams {
   catalog: AnimeMetadata[];
@@ -17,8 +16,9 @@ export interface RecommendationParams {
 }
 
 // Pipeline identique au grab : filter (chain) → score (strategy via factory)
-// → sort (strategy). Seule la stratégie de scoring change (barycentre au lieu
-// de weighted) — c'est exactement l'interchangeabilité voulue.
+// → sort (strategy). Le scoring ne s'appuie QUE sur les tags et leurs
+// combinaisons — aucun autre attribut (popularité, note...) n'entre dans
+// le vecteur ni dans le classement.
 export class RecommendationService {
   getRecommendations(params: RecommendationParams): Scored<AnimeMetadata>[] {
     const eligible = filterMetadataCandidates(params.catalog, {
@@ -30,16 +30,15 @@ export class RecommendationService {
     const liked = params.catalog.filter((a) => params.likedAnilistIds.includes(a.anilistId));
 
     if (liked.length === 0) {
-      // Pas de profil : ordre neutre par popularité
-      return [...eligible]
-        .sort((a, b) => (b.popularity ?? 0) - (a.popularity ?? 0))
-        .slice(0, limit)
-        .map((a) => ({ ...a, score: 0 }));
+      // Pas de profil de tags à comparer : ordre neutre (ordre du catalogue)
+      return eligible.slice(0, limit).map((a) => ({ ...a, score: 0 }));
     }
 
-    const ctx = buildVectorizationContext(params.catalog);
-    const profile = buildBarycenter(liked.map((a) => toVector(a, ctx)));
-    const strategy = ScoringFactory.forBarycenter<AnimeMetadata>(profile, (a) => toVector(a, ctx));
+    // Profil = barycentre des vecteurs de tags des favoris : les
+    // combinaisons de tags aimées (co-occurrences) sont encodées dans
+    // la moyenne dimension par dimension.
+    const profile = buildBarycenter(liked.map((a) => toVector(a)));
+    const strategy = ScoringFactory.forBarycenter<AnimeMetadata>(profile, (a) => toVector(a));
 
     const scored = scoreItems(eligible, strategy);
     const ranked = new ScoreDescendingSort<Scored<AnimeMetadata>>().sort(scored);

@@ -15,12 +15,10 @@ import {
   NoTorrentFoundError
 } from './error.js';
 import type { CreatePendingEpisodeInput } from './types.js';
-import { scoreTorrents } from '../scoring/scoring.js';
-import type { ScoredTorrent } from '../scoring/scoring.js';
-import { ScoringFactory } from '../scoring/scoring.factory.js';
-import { WeightedScoringStrategy } from '../scoring/weighted.strategy.js';
+import { scoreTorrents, type ScoredTorrent } from '../scoring/scoring.js';
+import { ScoringFactory } from '../scoring/factory/scoring.js';
 import { ScoreDescendingSort } from '../sort/sort.js';
-
+import { filterTorrents } from '../filter/torrent/filter.js';
 // ── Résultat du grab ──
 export interface GrabResult {
   subscriptionEpisode: SubscriptionEpisode;
@@ -152,7 +150,7 @@ export class EpisodeService {
     }
 
     // Scorer (seeders + bonus résolution/fansub) puis trier via SortStrategy
-    const scoringStrategy = new WeightedScoringStrategy({
+    const scoringStrategy = ScoringFactory.forTorrents({
       preferredResolution: subscription.preferredResolution,
     });
     const scored = scoreTorrents(valid, scoringStrategy);

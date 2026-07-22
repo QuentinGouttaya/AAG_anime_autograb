@@ -27,6 +27,7 @@ interface AnilistTag {
   id: number;
   name: string;
   isAdult: boolean;
+  rank: number | null; // pertinence du tag pour ce media (0-100)
 }
 
 interface AnilistMedia {
@@ -65,7 +66,7 @@ const MEDIA_FIELDS = `
   format
   genres
   isAdult
-  tags { id name isAdult }
+  tags { id name isAdult rank }
 `;
 
 export class AnilistService implements MetadataService {
@@ -130,13 +131,14 @@ export class AnilistService implements MetadataService {
   private toAnimeMetadata(m: AnilistMedia): AnimeMetadata {
     return {
       anilistId: m.id,
+      title: m.title.english ?? m.title.romaji,
       isAdult: m.isAdult,
       episodes: m.episodes ?? 0,
       tags: m.tags.map((t) => t.name),
       genres: m.genres,
+      tagRanks: Object.fromEntries(m.tags.map((t) => [t.name, t.rank ?? 50])),
     };
   }
-
   async searchAnime(
     title: string,
     page: number = 1,
