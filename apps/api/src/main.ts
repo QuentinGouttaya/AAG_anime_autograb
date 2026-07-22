@@ -17,8 +17,8 @@ import { EpisodeService } from './services/episodes/service.js';
 import { AnilistService } from './services/metadata/anilist/service.js';
 import type { MetadataService } from './services/metadata/metadata.service.js';
 import { SubscriptionService } from './services/subscription/subscription.service.js';
-
-// ── AJOUTÉ : TorrentIndexer ──
+import { RecommendationController } from './controllers/recommendation.controller.js';
+import { RecommendationService } from './services/recommendation/service.js';
 import { NyaaIndexer } from './services/torrents/nyaa/service.js';
 import type { TorrentIndexer } from './services/torrents/torrent.service.js';
 
@@ -68,10 +68,13 @@ const subscriptionController = new SubscriptionController(subscriptionService);
 const episodeController = new EpisodeController(episodeService);
 const metadataController = new MetadataController(metadataProvider);
 
+const recommendationService = new RecommendationService();
+const recommendationController = new RecommendationController(recommendationService, metadataProvider);
 const app = createApp({
   subscriptionController,
   episodeController,
   metadataController,
+  recommendationController,
 });
 
 app.listen(port, () => {
