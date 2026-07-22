@@ -51,6 +51,7 @@ const subscriptionService = new SubscriptionService(
   subscriptionRepository,
   serieRepository,
   metadataProvider,
+  episodeRepository,
 );
 
 // ── MODIFIÉ : 6 arguments ──

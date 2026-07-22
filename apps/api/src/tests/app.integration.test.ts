@@ -58,6 +58,7 @@ describe('App integration', () => {
       subscriptionRepository,
       serieRepository,
       anilistService,
+      episodeRepository,
     );
 
     const episodeController = new EpisodeController(episodeService);

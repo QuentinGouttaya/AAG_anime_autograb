@@ -8,7 +8,7 @@ export async function searchAnimes(
   perPage: number = 20,
 ): Promise<PaginatedResponse<Serie>> {
   const { data } = await apiClient.get<PaginatedResponse<Serie>>(
-    '/metadata/search',
+    '/metadata/search',   // ← était '/search'
     { params: { q: query, page, perPage } },
   );
   return data;

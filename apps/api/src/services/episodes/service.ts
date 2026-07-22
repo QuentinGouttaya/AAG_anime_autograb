@@ -12,6 +12,7 @@ import type { TorrentIndexer, Torrent } from '../torrents/torrent.service.js';
 import {
   EpisodeLinkUnavailableError,
   EpisodeNotFoundError,
+  NoTorrentFoundError
 } from './error.js';
 import type { CreatePendingEpisodeInput } from './types.js';
 
@@ -114,20 +115,19 @@ export class EpisodeService {
 
     if (valid.length === 0) {
       await this.updateStatus(subscriptionId, episodeId, 'failed');
-      throw new Error(
-        `No valid torrent for "${query}" (minSeeders: ${subscription.minSeeders}, res: ${subscription.preferredResolution})`,
-      );
+      throw new NoTorrentFoundError(query, subscription.minSeeders, subscription.preferredResolution);
     }
 
     // 7. Prendre le 1er résultat (M1 — pas de scoring)
     const best = valid[0];
 
     // 8. Envoyer le magnet au débrideur (Premiumize)
-    const links = await this.debridProvider.getDirectDownloadLink(best.magnet);
-
-    if (links.length === 0) {
+    let links;
+    try {
+      links = await this.debridProvider.getDirectDownloadLink(best.magnet);
+    } catch (error) {
       await this.updateStatus(subscriptionId, episodeId, 'failed');
-      throw new EpisodeLinkUnavailableError(episodeId);
+      throw new EpisodeLinkUnavailableError(episodeId, { cause: error });
     }
 
     // 9. Mettre à jour le statut → 'found'
@@ -171,24 +171,23 @@ export class EpisodeService {
     episodeId: number,
     status: EpisodeStatus,
   ): Promise<SubscriptionEpisode> {
-    const entries =
-      await this.subscriptionEpisodeRepository.findBySubscriptionId(
-        subscriptionId,
-      );
-
+    const entries = await this.subscriptionEpisodeRepository.findBySubscriptionId(subscriptionId);
     const entry = entries.find((item) => item.episodeId === episodeId);
 
-    if (!entry) {
-      throw new EpisodeNotFoundError(episodeId);
-    }
+    const base: SubscriptionEpisode = entry ?? {
+      subscriptionId,
+      episodeId,
+      status: 'pending',
+      grabbedAt: null,
+    };
 
     return this.subscriptionEpisodeRepository.upsert({
-      ...entry,
+      ...base,
       status,
       grabbedAt:
         status === 'found' || status === 'added' || status === 'ready'
           ? new Date().toISOString()
-          : entry.grabbedAt,
+          : base.grabbedAt,
     });
   }
 }

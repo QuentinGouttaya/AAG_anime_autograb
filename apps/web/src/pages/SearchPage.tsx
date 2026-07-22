@@ -45,6 +45,7 @@ export function SearchPage() {
   const [subscribingId, setSubscribingId] = useState<number | null>(null);
   const [detailSerie, setDetailSerie] = useState<Serie | null>(null);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
+  const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set());
 
   const showToast = (msg: string, ok = true) => {
     setToast({ msg, ok });
@@ -70,6 +71,7 @@ export function SearchPage() {
       setResults(rows);
       setPageInfo(res?.pageInfo ?? null);
       setHasSearched(true);
+      setSelectedTags(new Set());
     } catch {
       setError('Erreur lors de la recherche AniList.');
       setResults([]);
@@ -119,6 +121,33 @@ export function SearchPage() {
 
   const safeResults = useMemo(() => (Array.isArray(results) ? results : []), [results]);
 
+  const availableTags = useMemo(() => {
+    const names = new Set<string>();
+    for (const serie of safeResults) {
+      for (const tag of serie.tags ?? []) {
+        if (!tag.isAdult) names.add(tag.name);
+      }
+    }
+    return [...names].sort();
+  }, [safeResults]);
+
+  const filteredResults = useMemo(() => {
+    if (selectedTags.size === 0) return safeResults;
+    return safeResults.filter((serie) => {
+      const serieTagNames = new Set((serie.tags ?? []).map((t) => t.name));
+      return [...selectedTags].every((tag) => serieTagNames.has(tag));
+    });
+  }, [safeResults, selectedTags]);
+
+  const toggleTag = (tag: string) => {
+    setSelectedTags((prev) => {
+      const next = new Set(prev);
+      if (next.has(tag)) next.delete(tag);
+      else next.add(tag);
+      return next;
+    });
+  };
+
   return (
     <main className="page search-page">
       <h1>Recherche AniList</h1>
@@ -139,9 +168,29 @@ export function SearchPage() {
       {error && <p className="error-text center">{error}</p>}
       {loading && <p className="muted center">Chargement…</p>}
 
-      {!loading && safeResults.length > 0 && (
+      {!loading && availableTags.length > 0 && (
+        <div className="tag-filter-bar">
+          {availableTags.map((tag) => (
+            <button
+              key={tag}
+              type="button"
+              className={`genre-tag tag-filter-chip ${selectedTags.has(tag) ? 'tag-filter-chip-active' : ''}`}
+              onClick={() => toggleTag(tag)}
+            >
+              {tag}
+            </button>
+          ))}
+          {selectedTags.size > 0 && (
+            <button type="button" className="btn-ghost" onClick={() => setSelectedTags(new Set())}>
+              Effacer les filtres
+            </button>
+          )}
+        </div>
+      )}
+
+      {!loading && filteredResults.length > 0 && (
         <div className="search-grid">
-          {safeResults.map((serie) => {
+          {filteredResults.map((serie) => {
             const isSubscribed = subscribedAnilistIds.has(serie.anilistId);
             const isSubscribing = subscribingId === serie.anilistId;
             const displayedEpisodes = serie.episodeCount ?? null;
@@ -185,6 +234,19 @@ export function SearchPage() {
                       {genres.length > 3 && <span className="genre-tag">+{genres.length - 3}</span>}
                     </div>
                   )}
+
+                  {(serie.tags ?? []).filter((t) => !t.isAdult).length > 0 && (
+                    <div className="anime-genres">
+                      {(serie.tags ?? [])
+                        .filter((t) => !t.isAdult)
+                        .slice(0, 4)
+                        .map((tag) => (
+                          <span key={tag.id} className="genre-tag tag-chip">
+                            {tag.name}
+                          </span>
+                        ))}
+                    </div>
+                  )}
                 </div>
 
                 <div className="anime-actions">
@@ -216,7 +278,11 @@ export function SearchPage() {
         <div className="empty-state">Aucun résultat pour « {query.trim()} ».</div>
       )}
 
-      {!hasSearched && !loading && <div className="empty-state">Tape un titre d’animé pour lancer la recherche.</div>}
+      {!loading && hasSearched && safeResults.length > 0 && filteredResults.length === 0 && (
+        <div className="empty-state">Aucun résultat ne correspond aux tags sélectionnés.</div>
+      )}
+
+      {!hasSearched && !loading && <div className="empty-state">Tape un titre d'animé pour lancer la recherche.</div>}
 
       {pageInfo && pageInfo.lastPage > 1 && (
         <div className="pagination">
@@ -274,6 +340,15 @@ export function SearchPage() {
               <span>{Array.isArray(detailSerie.genres) && detailSerie.genres.length > 0 ? detailSerie.genres.join(', ') : '—'}</span>
             </div>
 
+            <div className="modal-row">
+              <span className="modal-label">Tags</span>
+              <span>
+                {(detailSerie.tags ?? []).filter((t) => !t.isAdult).length > 0
+                  ? (detailSerie.tags ?? []).filter((t) => !t.isAdult).map((t) => t.name).join(', ')
+                  : '—'}
+              </span>
+            </div>
+
             <button className="btn-primary modal-close" type="button" onClick={() => setDetailSerie(null)}>
               Fermer
             </button>
@@ -285,4 +360,3 @@ export function SearchPage() {
     </main>
   );
 }
-

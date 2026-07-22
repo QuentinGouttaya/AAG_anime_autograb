@@ -5,6 +5,7 @@ import type { SerieRepository } from '../../repositories/serie.repository.js';
 import type { MetadataService } from '../metadata/metadata.service.js';
 import { SubscriptionNotFoundError, AnimeNotFoundError } from './error.js';
 import type { CreateSubscriptionInput } from './types.js';
+import type { EpisodeRepository } from '../../repositories/episode.repository.js';
 
 // ← AJOUTÉ : type de retour avec la série jointe
 export type SubscriptionWithSerie = Subscription & { serie: Serie };
@@ -14,6 +15,7 @@ export class SubscriptionService {
     private readonly subscriptionRepository: SubscriptionRepository,
     private readonly serieRepository: SerieRepository,
     private readonly metadataService: MetadataService,
+    private readonly episodeRepository: EpisodeRepository,
   ) { }
 
   // ← MODIFIÉ : joint la série
@@ -73,7 +75,11 @@ export class SubscriptionService {
     });
 
     await this.serieRepository.saveTags(serie.id, anime.tags);
-
+    await Promise.all(
+      anime.episodes.map((episode) =>
+        this.episodeRepository.save({ ...episode, serieId: serie.id }),
+      ),
+    );
     return serie;
   }
 }

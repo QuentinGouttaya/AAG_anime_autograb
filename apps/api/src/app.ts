@@ -13,8 +13,9 @@ export function createApp({
   const app = express();
 
   app.disable('x-powered-by');
-  app.use(cors({ origin: 'http://localhost:5173' }));
+  app.use(cors());
   app.use(express.json());
+  app.disable('etag');
 
   app.get('/health', (_req, res) => {
     res.status(200).json({ status: 'ok' });
@@ -31,9 +32,10 @@ export function createApp({
   });
 
   // error handler global
-  app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
+  app.use((err: Error & { code?: number }, _req: Request, res: Response, _next: NextFunction) => {
     console.error(err);
-    res.status(500).json({ error: err.message ?? 'Internal server error' });
+    const status = typeof err.code === 'number' && err.code >= 400 && err.code < 600 ? err.code : 500;
+    res.status(status).json({ error: err.message ?? 'Internal server error' });
   });
 
   return app;
