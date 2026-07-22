@@ -1,5 +1,5 @@
-import type { Episode } from './episode.js';
 import type { Tag } from './tag.js';
+import type { Episode } from './episode.js';
 
 export type Serie = {
   id: number;

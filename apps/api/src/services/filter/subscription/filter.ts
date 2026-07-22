@@ -1,33 +1,129 @@
-// src/services/filter/subscription/filter.ts
 import { AbstractFilter, applyFilterChain, type FilterHandler } from '../index.js';
-import type { Subscription } from '../../../models/subscription.js';
-import type { SerieWithTags } from '../../../models/serie.js';
+import type { SubscriptionWithSerie } from '../../../models/subscription_episode.js';
 
+export interface SubscriptionFilterParams {
+  status?: 'active' | 'inactive';
+  search?: string;
+  genre?: string;
+  animeStatus?: string;
+  format?: string;
+}
 
-class ActiveFilter extends AbstractFilter<Subscription> {
-  protected check(sub: Subscription): boolean {
-    return sub.active;
+class StatusFilter extends AbstractFilter<SubscriptionWithSerie> {
+  constructor(private readonly status: 'active' | 'inactive') {
+    super();
+  }
+
+  protected check(sub: SubscriptionWithSerie): boolean {
+    if (this.status === 'active') return sub.active;
+    return !sub.active;
   }
 }
 
-export interface SubscriptionFilterParams {
-  onlyActive?: boolean;
+class SearchFilter extends AbstractFilter<SubscriptionWithSerie> {
+  constructor(private readonly searchTerm: string) {
+    super();
+  }
+
+  protected check(sub: SubscriptionWithSerie): boolean {
+    const search = this.searchTerm.toLowerCase();
+    const title = sub.serie?.canonicalTitle?.toLowerCase() ?? '';
+    const anilistId = String(sub.serie?.anilistId ?? '');
+
+    return title.includes(search) || anilistId.includes(search);
+  }
+}
+
+class GenreFilter extends AbstractFilter<SubscriptionWithSerie> {
+  constructor(private readonly genre: string) {
+    super();
+  }
+
+  protected check(sub: SubscriptionWithSerie): boolean {
+    const genres = sub.serie?.genres ?? [];
+    return genres.includes(this.genre);
+  }
+}
+
+class AnimeStatusFilter extends AbstractFilter<SubscriptionWithSerie> {
+  constructor(private readonly animeStatus: string) {
+    super();
+  }
+
+  protected check(sub: SubscriptionWithSerie): boolean {
+    return sub.serie?.status === this.animeStatus;
+  }
+}
+
+class FormatFilter extends AbstractFilter<SubscriptionWithSerie> {
+  constructor(private readonly format: string) {
+    super();
+  }
+
+  protected check(sub: SubscriptionWithSerie): boolean {
+    return sub.serie?.format === this.format;
+  }
 }
 
 export function buildSubscriptionFilterChain(
   params: SubscriptionFilterParams,
-): FilterHandler<Subscription> {
-  let head: FilterHandler<Subscription> | null = null;
-  let current: FilterHandler<Subscription> | null = null;
+): FilterHandler<SubscriptionWithSerie> {
+  let head: FilterHandler<SubscriptionWithSerie> | null = null;
+  let current: FilterHandler<SubscriptionWithSerie> | null = null;
 
-  if (params.onlyActive) {
-    const active = new ActiveFilter();
-    head = active;
-    current = active;
+  if (params.status) {
+    const filter = new StatusFilter(params.status);
+    head = filter;
+    current = filter;
   }
-  //NOOP === No Operation Expression
+
+  if (params.search) {
+    const filter = new SearchFilter(params.search);
+    if (!head) {
+      head = filter;
+      current = filter;
+    } else if (current) {
+      current.setNext(filter);
+      current = filter;
+    }
+  }
+
+  if (params.genre) {
+    const filter = new GenreFilter(params.genre);
+    if (!head) {
+      head = filter;
+      current = filter;
+    } else if (current) {
+      current.setNext(filter);
+      current = filter;
+    }
+  }
+
+  if (params.animeStatus) {
+    const filter = new AnimeStatusFilter(params.animeStatus);
+    if (!head) {
+      head = filter;
+      current = filter;
+    } else if (current) {
+      current.setNext(filter);
+      current = filter;
+    }
+  }
+
+  if (params.format) {
+    const filter = new FormatFilter(params.format);
+    if (!head) {
+      head = filter;
+      current = filter;
+    } else if (current) {
+      current.setNext(filter);
+      current = filter;
+    }
+  }
+
+  // NOOP si aucun filtre
   if (!head || !current) {
-    class NoopFilter extends AbstractFilter<Subscription> {
+    class NoopFilter extends AbstractFilter<SubscriptionWithSerie> {
       protected check(): boolean {
         return true;
       }
@@ -40,57 +136,8 @@ export function buildSubscriptionFilterChain(
 }
 
 export function filterSubscriptions(
-  subs: Subscription[],
+  subs: SubscriptionWithSerie[],
   params: SubscriptionFilterParams,
-): Subscription[] {
+): SubscriptionWithSerie[] {
   return applyFilterChain(subs, () => buildSubscriptionFilterChain(params));
-}
-
-export interface SerieSubscriptionFilterParams {
-  includeTags?: string[];
-}
-
-class SerieTagsFilter extends AbstractFilter<SerieWithTags> {
-  constructor(private readonly includeTags: string[]) {
-    super();
-  }
-
-  protected check(serie: SerieWithTags): boolean {
-    if (this.includeTags.length === 0) return true;
-
-    const tagNames = serie.tags.map((t) => t.name);
-    return this.includeTags.some((required) => tagNames.includes(required));
-  }
-}
-
-export function buildSerieSubscriptionFilterChain(
-  params: SerieSubscriptionFilterParams,
-): FilterHandler<SerieWithTags> {
-  let head: FilterHandler<SerieWithTags> | null = null;
-  let current: FilterHandler<SerieWithTags> | null = null;
-
-  if (params.includeTags && params.includeTags.length > 0) {
-    const tagsFilter = new SerieTagsFilter(params.includeTags);
-    head = tagsFilter;
-    current = tagsFilter;
-  }
-
-  if (!head || !current) {
-    class NoopFilter extends AbstractFilter<SerieWithTags> {
-      protected check(): boolean {
-        return true;
-      }
-    }
-    head = new NoopFilter();
-    current = head;
-  }
-
-  return head;
-}
-
-export function filterSubscribedSeries(
-  series: SerieWithTags[],
-  params: SerieSubscriptionFilterParams,
-): SerieWithTags[] {
-  return applyFilterChain(series, () => buildSerieSubscriptionFilterChain(params));
 }

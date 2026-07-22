@@ -6,4 +6,5 @@ export type Subscription = {
   minSeeders: number;
   active: boolean;
   createdAt: string;
+  episodeCount?: number; // AJOUTÉ - Propriété calculée par la requête SQL
 };
