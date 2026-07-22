@@ -1,15 +1,15 @@
 import { apiClient } from './client';
-import type { Subscription, CreateSubscriptionInput } from '../types';
+import type { CreateSubscriptionInput, SubscriptionWithSerie } from '../types';
 
-export async function getSubscriptions(): Promise<Subscription[]> {
-  const { data } = await apiClient.get<Subscription[]>('/subscriptions');
-  return data;
+export async function getSubscriptions(): Promise<SubscriptionWithSerie[]> {
+  const { data } = await apiClient.get<SubscriptionWithSerie[]>('/subscriptions');
+  return Array.isArray(data) ? data : [];
 }
 
 export async function createSubscription(
   input: CreateSubscriptionInput,
-): Promise<Subscription> {
-  const { data } = await apiClient.post<Subscription>('/subscriptions', input);
+): Promise<SubscriptionWithSerie> {
+  const { data } = await apiClient.post<SubscriptionWithSerie>('/subscriptions', input);
   return data;
 }
 

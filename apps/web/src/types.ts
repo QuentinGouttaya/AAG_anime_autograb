@@ -8,6 +8,10 @@ export type Subscription = {
   createdAt: string;
 };
 
+export type SubscriptionWithSerie = Subscription & {
+  serie: Serie;
+};
+
 export type CreateSubscriptionInput = {
   anilistId: number;
   preferredFansub: string[];
@@ -23,12 +27,13 @@ export type Serie = {
   canonicalTitle: string;
   coverImage?: string;
   episodeCount?: number | null;
+  episodes?: number | null;
   status?: string;
   format?: string;
   genres?: string[];
+  tags?: { id: number; anilistId: number; name: string; isAdult?: boolean }[];
 };
 
-// ── AJOUTÉ : pagination ──
 export type PageInfo = {
   currentPage: number;
   lastPage: number;

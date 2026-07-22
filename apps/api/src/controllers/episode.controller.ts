@@ -32,44 +32,35 @@ export class EpisodeController {
     res.json(episode);
   };
 
-  resolveDownloadLink = async (
-    req: Request,
-    res: Response,
-  ): Promise<void> => {
+  resolveDownloadLink = async (req: Request, res: Response): Promise<void> => {
     const subscriptionId = Number(req.params.subscriptionId);
     const episodeId = Number(req.params.episodeId);
-    const { magnetOrTorrentUrl } = req.body as {
-      magnetOrTorrentUrl?: unknown;
-    };
+    const { magnetOrTorrentUrl } = req.body as { magnetOrTorrentUrl?: unknown };
 
-    if (
-      !Number.isInteger(subscriptionId) ||
-      subscriptionId <= 0 ||
-      !Number.isInteger(episodeId) ||
-      episodeId <= 0
-    ) {
-      res.status(400).json({
-        message: 'Invalid subscription id or episode id',
-      });
+    if (!Number.isInteger(subscriptionId) || subscriptionId <= 0 || !Number.isInteger(episodeId) || episodeId <= 0) {
+      res.status(400).json({ message: 'Invalid subscription id or episode id' });
       return;
     }
 
-    if (
-      typeof magnetOrTorrentUrl !== 'string' ||
-      magnetOrTorrentUrl.trim().length === 0
-    ) {
-      res.status(400).json({
-        message: 'magnetOrTorrentUrl is required',
-      });
+    if (typeof magnetOrTorrentUrl !== 'string' || magnetOrTorrentUrl.trim().length === 0) {
+      res.status(400).json({ message: 'magnetOrTorrentUrl is required' });
       return;
     }
 
-    const episode = await this.episodeService.resolveDownloadLink(
-      subscriptionId,
-      episodeId,
-      magnetOrTorrentUrl,
-    );
-
+    const episode = await this.episodeService.resolveDownloadLink(subscriptionId, episodeId, magnetOrTorrentUrl);
     res.json(episode);
+  };
+
+  grab = async (req: Request, res: Response): Promise<void> => {
+    const subscriptionId = Number(req.params.subscriptionId);
+    const episodeId = Number(req.params.episodeId);
+
+    if (!Number.isInteger(subscriptionId) || subscriptionId <= 0 || !Number.isInteger(episodeId) || episodeId <= 0) {
+      res.status(400).json({ message: 'Invalid subscription id or episode id' });
+      return;
+    }
+
+    const result = await this.episodeService.grabEpisode(subscriptionId, episodeId);
+    res.json(result);
   };
 }

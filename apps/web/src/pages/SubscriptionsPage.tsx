@@ -1,10 +1,18 @@
 import { Fragment, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { getSubscriptions, deleteSubscription } from '../api/subscriptions';
+import { deleteSubscription, getSubscriptions } from '../api/subscriptions';
 import { getEpisodes, resolveDownloadLink, grabEpisode } from '../api/episodes';
-import type { Subscription } from '../types';
+import type { Episode, SubscriptionWithSerie } from '../types';
 
-type SortKey = 'createdAt' | 'minSeeders' | 'seriesId';
+type SortKey = 'createdAt' | 'minSeeders' | 'seriesTitle' | 'episodeCount';
+
+function compareText(a: string, b: string, dir: 'asc' | 'desc') {
+  return a.localeCompare(b, undefined, { sensitivity: 'base', numeric: true }) * (dir === 'asc' ? 1 : -1);
+}
+
+function compareNumber(a: number, b: number, dir: 'asc' | 'desc') {
+  return (a - b) * (dir === 'asc' ? 1 : -1);
+}
 
 export function SubscriptionsPage() {
   const queryClient = useQueryClient();
@@ -20,6 +28,22 @@ export function SubscriptionsPage() {
     queryFn: getSubscriptions,
   });
 
+  const { data: episodesData } = useQuery({
+    queryKey: ['episodes'],
+    queryFn: getEpisodes,
+  });
+
+  const subscriptions = useMemo<SubscriptionWithSerie[]>(() => (Array.isArray(data) ? data : []), [data]);
+  const episodes = useMemo<Episode[]>(() => (Array.isArray(episodesData) ? episodesData : []), [episodesData]);
+
+  const episodeCountBySeries = useMemo(() => {
+    const counts = new Map<number, number>();
+    for (const episode of episodes) {
+      counts.set(episode.serieId, (counts.get(episode.serieId) ?? 0) + 1);
+    }
+    return counts;
+  }, [episodes]);
+
   const removeMutation = useMutation({
     mutationFn: deleteSubscription,
     onSuccess: async () => {
@@ -28,46 +52,60 @@ export function SubscriptionsPage() {
   });
 
   const resolutions = useMemo(
-    () => Array.from(new Set((data ?? []).map((s) => s.preferredResolution))),
-    [data],
+    () => Array.from(new Set(subscriptions.map((s) => s.preferredResolution).filter(Boolean))).sort(),
+    [subscriptions],
   );
 
   const filtered = useMemo(() => {
-    let rows = data ?? [];
+    const q = search.trim().toLowerCase();
 
-    if (statusFilter !== 'all') {
-      rows = rows.filter((s) => (statusFilter === 'active' ? s.active : !s.active));
-    }
-    if (resolutionFilter !== 'all') {
-      rows = rows.filter((s) => s.preferredResolution === resolutionFilter);
-    }
-    if (search.trim()) {
-      const q = search.trim().toLowerCase();
-      rows = rows.filter(
-        (s) =>
-          // ← MODIFIÉ : recherche par titre de série aussi
-          (s.serie?.canonicalTitle ?? '').toLowerCase().includes(q) ||
+    return subscriptions
+      .filter((s) => {
+        if (statusFilter !== 'all' && (statusFilter === 'active') !== s.active) {
+          return false;
+        }
+        if (resolutionFilter !== 'all' && s.preferredResolution !== resolutionFilter) {
+          return false;
+        }
+        if (!q) {
+          return true;
+        }
+
+        const title = s.serie?.canonicalTitle ?? `Serie #${s.seriesId}`;
+        const fansubs = Array.isArray(s.preferredFansub) ? s.preferredFansub : [];
+
+        return (
+          title.toLowerCase().includes(q) ||
           String(s.seriesId).includes(q) ||
-          s.preferredFansub.some((f) => f.toLowerCase().includes(q)),
-      );
-    }
-
-    return [...rows].sort((a, b) => {
-      const dir = sortDir === 'asc' ? 1 : -1;
-      if (sortKey === 'createdAt') {
-        return (new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()) * dir;
-      }
-      return (a[sortKey] - b[sortKey]) * dir;
-    });
-  }, [data, statusFilter, resolutionFilter, search, sortKey, sortDir]);
+          String(s.serie?.anilistId ?? '').includes(q) ||
+          fansubs.some((f) => f.toLowerCase().includes(q))
+        );
+      })
+      .sort((a, b) => {
+        if (sortKey === 'createdAt') {
+          return compareNumber(new Date(a.createdAt).getTime(), new Date(b.createdAt).getTime(), sortDir);
+        }
+        if (sortKey === 'minSeeders') {
+          return compareNumber(a.minSeeders, b.minSeeders, sortDir);
+        }
+        if (sortKey === 'episodeCount') {
+          return compareNumber(
+            episodeCountBySeries.get(a.seriesId) ?? 0,
+            episodeCountBySeries.get(b.seriesId) ?? 0,
+            sortDir,
+          );
+        }
+        return compareText(a.serie?.canonicalTitle ?? `Serie #${a.seriesId}`, b.serie?.canonicalTitle ?? `Serie #${b.seriesId}`, sortDir);
+      });
+  }, [subscriptions, statusFilter, resolutionFilter, search, sortKey, sortDir, episodeCountBySeries]);
 
   const toggleSort = (key: SortKey) => {
     if (key === sortKey) {
       setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
-    } else {
-      setSortKey(key);
-      setSortDir('desc');
+      return;
     }
+    setSortKey(key);
+    setSortDir(key === 'seriesTitle' ? 'asc' : 'desc');
   };
 
   if (isPending) return <main className="page"><p>Loading subscriptions...</p></main>;
@@ -80,26 +118,18 @@ export function SubscriptionsPage() {
       <div className="toolbar">
         <input
           className="input"
-          placeholder="Search by title, series id or fansub..."
+          placeholder="Search by title, AniList ID, series ID or fansub..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
 
-        <select
-          className="input"
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
-        >
+        <select className="input" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}>
           <option value="all">All statuses</option>
           <option value="active">Active</option>
           <option value="inactive">Inactive</option>
         </select>
 
-        <select
-          className="input"
-          value={resolutionFilter}
-          onChange={(e) => setResolutionFilter(e.target.value)}
-        >
+        <select className="input" value={resolutionFilter} onChange={(e) => setResolutionFilter(e.target.value)}>
           <option value="all">All resolutions</option>
           {resolutions.map((r) => (
             <option key={r} value={r}>{r}</option>
@@ -110,13 +140,16 @@ export function SubscriptionsPage() {
       <table className="sub-table">
         <thead>
           <tr>
-            <th onClick={() => toggleSort('seriesId')} className="sortable">
-              Series {sortKey === 'seriesId' && (sortDir === 'asc' ? '↑' : '↓')}
+            <th onClick={() => toggleSort('seriesTitle')} className="sortable">
+              Series {sortKey === 'seriesTitle' && (sortDir === 'asc' ? '↑' : '↓')}
             </th>
             <th>Fansub</th>
             <th>Resolution</th>
             <th onClick={() => toggleSort('minSeeders')} className="sortable">
               Min seeders {sortKey === 'minSeeders' && (sortDir === 'asc' ? '↑' : '↓')}
+            </th>
+            <th onClick={() => toggleSort('episodeCount')} className="sortable">
+              Episodes {sortKey === 'episodeCount' && (sortDir === 'asc' ? '↑' : '↓')}
             </th>
             <th>Status</th>
             <th onClick={() => toggleSort('createdAt')} className="sortable">
@@ -126,16 +159,14 @@ export function SubscriptionsPage() {
           </tr>
         </thead>
         <tbody>
-          {filtered.map((s: Subscription) => (
+          {filtered.map((s) => (
             <Fragment key={s.id}>
               <tr>
-                {/* ← MODIFIÉ : afficher le titre au lieu de #seriesId */}
-                <td>
-                  {s.serie?.canonicalTitle ?? `Serie #${s.seriesId}`}
-                </td>
-                <td>{s.preferredFansub.join(', ') || '—'}</td>
+                <td>{s.serie?.canonicalTitle ?? `Serie #${s.seriesId}`}</td>
+                <td>{Array.isArray(s.preferredFansub) && s.preferredFansub.length > 0 ? s.preferredFansub.join(', ') : '—'}</td>
                 <td>{s.preferredResolution}</td>
                 <td>{s.minSeeders}</td>
+                <td>{episodeCountBySeries.get(s.seriesId) ?? 0}</td>
                 <td>
                   <span className={`badge ${s.active ? 'badge-active' : 'badge-inactive'}`}>
                     {s.active ? 'Active' : 'Inactive'}
@@ -143,21 +174,18 @@ export function SubscriptionsPage() {
                 </td>
                 <td>{new Date(s.createdAt).toLocaleDateString()}</td>
                 <td className="row-actions">
-                  <button
-                    className="btn-primary"
-                    onClick={() => setExpandedId(expandedId === s.id ? null : s.id)}
-                  >
+                  <button className="btn-primary" onClick={() => setExpandedId(expandedId === s.id ? null : s.id)}>
                     {expandedId === s.id ? 'Close' : 'Episodes'}
                   </button>
-                  <button className="btn-danger" onClick={() => removeMutation.mutate(s.id)}>
+                  <button className="btn-danger" onClick={() => removeMutation.mutate(s.id)} disabled={removeMutation.isPending}>
                     Unsubscribe
                   </button>
                 </td>
               </tr>
               {expandedId === s.id && (
-                <tr key={`${s.id}-resolve`}>
-                  <td colSpan={7}>
-                    <EpisodePanel subscription={s} />
+                <tr>
+                  <td colSpan={8}>
+                    <EpisodePanel subscription={s} allEpisodes={episodes} />
                   </td>
                 </tr>
               )}
@@ -171,24 +199,24 @@ export function SubscriptionsPage() {
   );
 }
 
-// ── Panneau épisode : Grab auto + Resolve manuel ──
-
-function EpisodePanel({ subscription }: { subscription: Subscription }) {
+function EpisodePanel({ subscription, allEpisodes }: { subscription: SubscriptionWithSerie; allEpisodes: Episode[] }) {
   const queryClient = useQueryClient();
   const [episodeId, setEpisodeId] = useState<number | null>(null);
   const [magnet, setMagnet] = useState('');
 
-  const { data: episodes, isPending, error } = useQuery({
-    queryKey: ['episodes'],
-    queryFn: getEpisodes,
-  });
-
   const seriesEpisodes = useMemo(
-    () => (episodes ?? []).filter((e) => e.serieId === subscription.seriesId),
-    [episodes, subscription.seriesId],
+    () =>
+      allEpisodes
+        .filter((e) => e.serieId === subscription.seriesId)
+        .sort((a, b) => a.episodeNumber - b.episodeNumber),
+    [allEpisodes, subscription.seriesId],
   );
 
-  // ── Grab automatique (Nyaa → Premiumize) ──
+  const selectedEpisode = useMemo(
+    () => seriesEpisodes.find((e) => e.id === episodeId) ?? null,
+    [seriesEpisodes, episodeId],
+  );
+
   const grabMutation = useMutation({
     mutationFn: () => grabEpisode(subscription.id, episodeId as number),
     onSuccess: async () => {
@@ -196,21 +224,15 @@ function EpisodePanel({ subscription }: { subscription: Subscription }) {
     },
   });
 
-  // ── Resolve manuel (fallback) ──
   const resolveMutation = useMutation({
-    mutationFn: () =>
-      resolveDownloadLink(subscription.id, episodeId as number, magnet.trim()),
+    mutationFn: () => resolveDownloadLink(subscription.id, episodeId as number, magnet.trim()),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['episodes'] });
     },
   });
 
-  if (isPending) return <p>Loading episodes...</p>;
-  if (error) return <p>Failed to load episodes.</p>;
-
   return (
     <div className="resolve-panel">
-      {/* Sélection d'épisode */}
       <select
         className="input"
         value={episodeId ?? ''}
@@ -219,24 +241,17 @@ function EpisodePanel({ subscription }: { subscription: Subscription }) {
         <option value="">Select episode...</option>
         {seriesEpisodes.map((ep) => (
           <option key={ep.id} value={ep.id}>
-            Episode {ep.episodeNumber}
+            Episode {ep.episodeNumber}{ep.airedAt ? ` · ${new Date(ep.airedAt).toLocaleDateString()}` : ''}
           </option>
         ))}
       </select>
 
-      {/* ── Grab automatique ── */}
-      <button
-        className="btn-primary"
-        disabled={!episodeId || grabMutation.isPending}
-        onClick={() => grabMutation.mutate()}
-      >
+      <button className="btn-primary" disabled={!episodeId || grabMutation.isPending} onClick={() => grabMutation.mutate()}>
         {grabMutation.isPending ? '🧲 Grabbing...' : '🧲 Grab'}
       </button>
 
-      {/* ── Séparateur ── */}
       <span className="muted">or manual:</span>
 
-      {/* ── Resolve manuel (fallback) ── */}
       <input
         className="input"
         placeholder="Magnet or torrent URL"
@@ -252,7 +267,12 @@ function EpisodePanel({ subscription }: { subscription: Subscription }) {
         {resolveMutation.isPending ? 'Resolving...' : 'Resolve link'}
       </button>
 
-      {/* ── Résultats ── */}
+      {selectedEpisode && (
+        <span className="badge badge-inactive">
+          Selected: {subscription.serie?.canonicalTitle ?? `Serie #${subscription.seriesId}`} · Episode {selectedEpisode.episodeNumber}
+        </span>
+      )}
+
       {grabMutation.isSuccess && (
         <span className="badge badge-active">
           ✓ {grabMutation.data.torrent.title} ({grabMutation.data.torrent.seeders} seeders)
@@ -264,16 +284,10 @@ function EpisodePanel({ subscription }: { subscription: Subscription }) {
         </span>
       )}
 
-      {resolveMutation.isSuccess && (
-        <span className="badge badge-active">Status: {resolveMutation.data.status}</span>
-      )}
-      {resolveMutation.isError && (
-        <span className="badge badge-inactive">Failed to resolve link.</span>
-      )}
+      {resolveMutation.isSuccess && <span className="badge badge-active">Status: {resolveMutation.data.status}</span>}
+      {resolveMutation.isError && <span className="badge badge-inactive">Failed to resolve link.</span>}
 
-      {seriesEpisodes.length === 0 && (
-        <p className="empty-state">No episodes found for this series yet.</p>
-      )}
+      {seriesEpisodes.length === 0 && <p className="empty-state">No episodes found for this series yet.</p>}
     </div>
   );
 }

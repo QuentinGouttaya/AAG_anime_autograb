@@ -3,7 +3,7 @@ import type { Episode, SubscriptionEpisode } from '../types';
 
 export async function getEpisodes(): Promise<Episode[]> {
   const { data } = await apiClient.get<Episode[]>('/episodes');
-  return data;
+  return Array.isArray(data) ? data : [];
 }
 
 export async function resolveDownloadLink(
@@ -18,7 +18,6 @@ export async function resolveDownloadLink(
   return data;
 }
 
-// ← AJOUTÉ : grab automatique via Nyaa
 export interface GrabResult {
   subscriptionEpisode: SubscriptionEpisode;
   torrent: {

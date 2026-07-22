@@ -77,11 +77,14 @@ describe('EpisodeService', () => {
     const serieRepository = {
       findById: async () => ({
         id: 1,
-        anilistId: 154587,
-        canonicalTitle: 'Frieren: Beyond Journey\'s End',
+        anilistId: 123,
+        canonicalTitle: 'Frieren',
       }),
+      findByAnilistId: async () => null,
       findAll: async () => [],
       save: async (s: any) => s,
+      saveTags: async () => { },
+      findTagsBySerieId: async () => [],
       delete: async () => { },
     };
 

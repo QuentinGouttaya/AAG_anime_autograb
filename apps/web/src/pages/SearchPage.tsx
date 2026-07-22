@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { searchAnimes } from '../api/anime';
 import { createSubscription } from '../api/subscriptions';
 import type { PageInfo, Serie } from '../types';
@@ -14,10 +14,7 @@ const STATUS_LABELS: Record<string, string> = {
 const PLACEHOLDER =
   'data:image/svg+xml,' +
   encodeURIComponent(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="230" height="345">
-       <rect width="100%" height="100%" fill="#2a2a3a"/>
-       <text x="50%" y="50%" fill="#777" font-size="14" text-anchor="middle">No image</text>
-     </svg>`,
+    `<svg xmlns="http://www.w3.org/2000/svg" width="230" height="345"><rect width="100%" height="100%" fill="#2a2a3a"/><text x="50%" y="50%" fill="#777" font-size="14" text-anchor="middle">No image</text></svg>`,
   );
 
 type ApiErrorLike = {
@@ -44,12 +41,8 @@ export function SearchPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
-
-  const [subscribedAnilistIds, setSubscribedAnilistIds] = useState<Set<number>>(
-    new Set(),
-  );
+  const [subscribedAnilistIds, setSubscribedAnilistIds] = useState<Set<number>>(new Set());
   const [subscribingId, setSubscribingId] = useState<number | null>(null);
-
   const [detailSerie, setDetailSerie] = useState<Serie | null>(null);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
 
@@ -59,20 +52,29 @@ export function SearchPage() {
   };
 
   const doSearch = useCallback(async (q: string, p: number) => {
-    if (q.trim().length < 2) return;
+    const normalizedQuery = q.trim();
+    if (normalizedQuery.length < 2) {
+      setHasSearched(false);
+      setResults([]);
+      setPageInfo(null);
+      return;
+    }
 
     setLoading(true);
     setError(null);
 
     try {
-      const res = await searchAnimes(q.trim(), p, 20);
-      setResults(res.data);
-      setPageInfo(res.pageInfo);
+      const res = await searchAnimes(normalizedQuery, p, 20);
+      const rows = Array.isArray(res?.data) ? res.data : [];
+
+      setResults(rows);
+      setPageInfo(res?.pageInfo ?? null);
       setHasSearched(true);
     } catch {
       setError('Erreur lors de la recherche AniList.');
       setResults([]);
       setPageInfo(null);
+      setHasSearched(true);
     } finally {
       setLoading(false);
     }
@@ -80,11 +82,11 @@ export function SearchPage() {
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    doSearch(query, 1);
+    void doSearch(query, 1);
   };
 
   const goToPage = (p: number) => {
-    doSearch(query, p);
+    void doSearch(query, p);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -108,15 +110,14 @@ export function SearchPage() {
         return;
       }
 
-      const message = isApiError(err)
-        ? err.response?.data?.message
-        : undefined;
-
+      const message = isApiError(err) ? err.response?.data?.message : undefined;
       showToast(message ?? "Erreur lors de l'abonnement", false);
     } finally {
       setSubscribingId(null);
     }
   };
+
+  const safeResults = useMemo(() => (Array.isArray(results) ? results : []), [results]);
 
   return (
     <main className="page search-page">
@@ -130,7 +131,7 @@ export function SearchPage() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
-        <button className="btn-primary" type="submit" disabled={loading}>
+        <button className="btn-primary" type="submit" disabled={loading || query.trim().length < 2}>
           {loading ? '…' : 'Rechercher'}
         </button>
       </form>
@@ -138,11 +139,13 @@ export function SearchPage() {
       {error && <p className="error-text center">{error}</p>}
       {loading && <p className="muted center">Chargement…</p>}
 
-      {!loading && results.length > 0 && (
+      {!loading && safeResults.length > 0 && (
         <div className="search-grid">
-          {results.map((serie) => {
+          {safeResults.map((serie) => {
             const isSubscribed = subscribedAnilistIds.has(serie.anilistId);
             const isSubscribing = subscribingId === serie.anilistId;
+            const displayedEpisodes = serie.episodeCount ?? null;
+            const genres = Array.isArray(serie.genres) ? serie.genres : [];
 
             return (
               <article key={serie.anilistId} className="anime-card">
@@ -160,40 +163,26 @@ export function SearchPage() {
 
                   <div className="anime-badges">
                     {serie.status && (
-                      <span
-                        className={`badge ${statusBadgeClass(serie.status)}`}
-                      >
+                      <span className={`badge ${statusBadgeClass(serie.status)}`}>
                         {STATUS_LABELS[serie.status] ?? serie.status}
                       </span>
                     )}
 
-                    {serie.format && (
-                      <span className="badge badge-inactive">
-                        {serie.format}
-                      </span>
-                    )}
+                    {serie.format && <span className="badge badge-inactive">{serie.format}</span>}
                   </div>
 
                   <p className="anime-meta">
-                    {serie.episodes
-                      ? `${serie.episodes} ép.`
-                      : 'Ép. inconnu'}{' '}
-                    · AniList #{serie.anilistId}
+                    {displayedEpisodes ? `${displayedEpisodes} ép.` : 'Ép. inconnu'} · AniList #{serie.anilistId}
                   </p>
 
-                  {serie.genres && serie.genres.length > 0 && (
+                  {genres.length > 0 && (
                     <div className="anime-genres">
-                      {serie.genres.slice(0, 3).map((genre) => (
+                      {genres.slice(0, 3).map((genre) => (
                         <span key={genre} className="genre-tag">
                           {genre}
                         </span>
                       ))}
-
-                      {serie.genres.length > 3 && (
-                        <span className="genre-tag">
-                          +{serie.genres.length - 3}
-                        </span>
-                      )}
+                      {genres.length > 3 && <span className="genre-tag">+{genres.length - 3}</span>}
                     </div>
                   )}
                 </div>
@@ -203,13 +192,9 @@ export function SearchPage() {
                     className="btn-primary btn-sub"
                     type="button"
                     disabled={isSubscribed || isSubscribing}
-                    onClick={() => handleSubscribe(serie)}
+                    onClick={() => void handleSubscribe(serie)}
                   >
-                    {isSubscribing
-                      ? '…'
-                      : isSubscribed
-                        ? '✓ Abonné'
-                        : "+ S'abonner"}
+                    {isSubscribing ? '…' : isSubscribed ? '✓ Abonné' : "+ S'abonner"}
                   </button>
 
                   <button
@@ -227,36 +212,31 @@ export function SearchPage() {
         </div>
       )}
 
-      {!loading && hasSearched && results.length === 0 && !error && (
-        <div className="empty-state">Aucun résultat pour « {query} ».</div>
+      {!loading && hasSearched && safeResults.length === 0 && !error && (
+        <div className="empty-state">Aucun résultat pour « {query.trim()} ».</div>
       )}
 
-      {!hasSearched && !loading && (
-        <div className="empty-state">
-          Tape un titre d’animé pour lancer la recherche.
-        </div>
-      )}
+      {!hasSearched && !loading && <div className="empty-state">Tape un titre d’animé pour lancer la recherche.</div>}
 
       {pageInfo && pageInfo.lastPage > 1 && (
         <div className="pagination">
           <button
             className="page-btn"
             type="button"
-            disabled={pageInfo.currentPage <= 1}
+            disabled={pageInfo.currentPage <= 1 || loading}
             onClick={() => goToPage(pageInfo.currentPage - 1)}
           >
             ← Précédent
           </button>
 
           <span className="page-info">
-            Page {pageInfo.currentPage} / {pageInfo.lastPage} (
-            {pageInfo.total} résultats)
+            Page {pageInfo.currentPage} / {pageInfo.lastPage} ({pageInfo.total} résultats)
           </span>
 
           <button
             className="page-btn"
             type="button"
-            disabled={!pageInfo.hasNextPage}
+            disabled={!pageInfo.hasNextPage || loading}
             onClick={() => goToPage(pageInfo.currentPage + 1)}
           >
             Suivant →
@@ -266,12 +246,7 @@ export function SearchPage() {
 
       {detailSerie && (
         <div className="modal-overlay" onClick={() => setDetailSerie(null)}>
-          <div
-            className="modal"
-            role="dialog"
-            aria-modal="true"
-            onClick={(e) => e.stopPropagation()}
-          >
+          <div className="modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
             <h2 className="modal-title">{detailSerie.canonicalTitle}</h2>
 
             <div className="modal-row">
@@ -281,11 +256,7 @@ export function SearchPage() {
 
             <div className="modal-row">
               <span className="modal-label">Statut</span>
-              <span>
-                {STATUS_LABELS[detailSerie.status ?? ''] ??
-                  detailSerie.status ??
-                  '—'}
-              </span>
+              <span>{STATUS_LABELS[detailSerie.status ?? ''] ?? detailSerie.status ?? '—'}</span>
             </div>
 
             <div className="modal-row">
@@ -295,32 +266,23 @@ export function SearchPage() {
 
             <div className="modal-row">
               <span className="modal-label">Épisodes</span>
-              <span>{detailSerie.episodes ?? '—'}</span>
+              <span>{detailSerie.episodeCount ?? '—'}</span>
             </div>
 
             <div className="modal-row">
               <span className="modal-label">Genres</span>
-              <span>{detailSerie.genres?.join(', ') ?? '—'}</span>
+              <span>{Array.isArray(detailSerie.genres) && detailSerie.genres.length > 0 ? detailSerie.genres.join(', ') : '—'}</span>
             </div>
 
-            <button
-              className="btn-primary modal-close"
-              type="button"
-              onClick={() => setDetailSerie(null)}
-            >
+            <button className="btn-primary modal-close" type="button" onClick={() => setDetailSerie(null)}>
               Fermer
             </button>
           </div>
         </div>
       )}
 
-      {toast && (
-        <div
-          className={`toast ${toast.ok ? 'toast-success' : 'toast-error'}`}
-        >
-          {toast.msg}
-        </div>
-      )}
+      {toast && <div className={`toast ${toast.ok ? 'toast-success' : 'toast-error'}`}>{toast.msg}</div>}
     </main>
   );
 }
+
