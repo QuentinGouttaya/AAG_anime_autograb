@@ -39,7 +39,6 @@ interface AnilistMedia {
   genres: string[];
   isAdult: boolean;
   tags: AnilistTag[];
-  airingSchedule: { nodes: AnilistAiringScheduleNode[] };
 }
 
 interface AnilistPageInfo {
@@ -67,7 +66,6 @@ const MEDIA_FIELDS = `
   genres
   isAdult
   tags { id name isAdult }
-  airingSchedule(perPage: 50) { nodes { episode airingAt } }
 `;
 
 export class AnilistService implements MetadataService {
@@ -187,18 +185,81 @@ export class AnilistService implements MetadataService {
     if (!data.Media) return null;
 
     const serie = this.toSerie(data.Media);
-    const episodes: Episode[] = data.Media.airingSchedule.nodes.map((node) => ({
-      id: 0,
-      serieId: serie.id,
-      episodeNumber: node.episode,
-      airedAt: new Date(node.airingAt * 1000),
-    }));
+    const episodes = await this.buildEpisodeList(anilistId, serie.id, serie.episodeCount ?? null);
 
     return {
       ...serie,
       tags: this.toTags(data.Media),
       episodes,
     };
+  }
+
+  // airingSchedule ne couvre fiablement que les diffusions récentes/en cours :
+  // pour les vieilles séries terminées (Naruto, Bleach...), AniList n'a
+  // souvent aucune entrée par épisode. On construit donc la liste à partir
+  // du total `episodes` (toujours fiable), et on n'utilise airingSchedule
+  // que pour enrichir la date quand elle existe.
+  private async buildEpisodeList(
+    anilistId: number,
+    serieId: number,
+    episodeCount: number | null,
+  ): Promise<Episode[]> {
+    const airedAtByEpisode = await this.fetchAiringDates(anilistId);
+
+    if (!episodeCount || episodeCount <= 0) {
+      return [...airedAtByEpisode.entries()].map(([episodeNumber, airedAt]) => ({
+        id: 0,
+        serieId,
+        episodeNumber,
+        airedAt,
+      }));
+    }
+
+    return Array.from({ length: episodeCount }, (_, i) => {
+      const episodeNumber = i + 1;
+      return {
+        id: 0,
+        serieId,
+        episodeNumber,
+        airedAt: airedAtByEpisode.get(episodeNumber) ?? null,
+      };
+    });
+  }
+
+  private async fetchAiringDates(anilistId: number): Promise<Map<number, Date>> {
+    const query = `
+      query ($id: Int, $page: Int) {
+        Media(id: $id, type: ANIME) {
+          airingSchedule(page: $page, perPage: 50) {
+            pageInfo { hasNextPage }
+            nodes { episode airingAt }
+          }
+        }
+      }
+    `;
+
+    let page = 1;
+    const dates = new Map<number, Date>();
+
+    while (true) {
+      const data = await this.AnilistRequest<{
+        Media: {
+          airingSchedule: {
+            pageInfo: { hasNextPage: boolean };
+            nodes: AnilistAiringScheduleNode[];
+          };
+        };
+      }>(query, { id: anilistId, page });
+
+      for (const node of data.Media.airingSchedule.nodes) {
+        dates.set(node.episode, new Date(node.airingAt * 1000));
+      }
+
+      if (!data.Media.airingSchedule.pageInfo.hasNextPage) break;
+      page++;
+    }
+
+    return dates;
   }
 
   async getSeasonAnime(season: Season, year: number): Promise<Serie[]> {

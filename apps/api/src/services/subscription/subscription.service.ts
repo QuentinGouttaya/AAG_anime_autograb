@@ -26,6 +26,7 @@ export interface SubscriptionQueryParams extends SubscriptionFilterParams {
   sort?: SubscriptionSortKey;
   direction?: SortDirection;
 }
+
 const SORT_STRATEGIES: Record<SubscriptionSortKey, (dir: SortDirection) => SortStrategy<SubscriptionWithSerie>> = {
   createdAt: (dir) => new CreatedAtSort(dir),
   title: (dir) => new SeriesTitleSort(dir),
@@ -102,15 +103,40 @@ export class SubscriptionService {
 
   private async getOrCreateSerie(anilistId: number) {
     const existing = await this.serieRepository.findByAnilistId(anilistId);
-    if (existing) return existing;
+
+    if (existing) {
+      // Resync des entrées stale : créées avant que romaji/cover/status/format/
+      // episodeCount soient persistés, ou dont les épisodes n'ont jamais été
+      // sauvegardés. Sans ça, une série cassée en base le reste pour toujours.
+      const existingEpisodes = await this.episodeRepository.findBySerieId(existing.id);
+      const isStale = existing.episodeCount == null || existingEpisodes.length === 0;
+      if (!isStale) return existing;
+
+      const anime = await this.metadataService.getAnimeById(anilistId);
+      if (!anime) return existing;
+
+      const serie = await this.serieRepository.save({
+        ...anime,
+        id: existing.id,
+      });
+
+      await this.serieRepository.saveTags(serie.id, anime.tags);
+      if (existingEpisodes.length === 0) {
+        await Promise.all(
+          anime.episodes.map((episode) =>
+            this.episodeRepository.save({ ...episode, serieId: serie.id }),
+          ),
+        );
+      }
+      return serie;
+    }
 
     const anime = await this.metadataService.getAnimeById(anilistId);
     if (!anime) throw new AnimeNotFoundError(anilistId);
 
     const serie = await this.serieRepository.save({
+      ...anime,
       id: 0,
-      anilistId: anime.anilistId,
-      canonicalTitle: anime.canonicalTitle,
     });
 
     await this.serieRepository.saveTags(serie.id, anime.tags);

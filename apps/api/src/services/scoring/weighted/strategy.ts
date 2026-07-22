@@ -1,6 +1,6 @@
-// src/services/scoring/weighted-scoring.strategy.ts
-import type { Torrent } from '../torrents/torrent.service.js';
-import type { TorrentScoringStrategy, ScoredTorrent } from './scoring.strategy.js';
+// src/services/scoring/weighted.strategy.ts
+import type { Torrent } from '../../torrents/torrent.service.js';
+import type { TorrentScoringStrategy, ScoredTorrent } from '../scoring.js';
 
 export interface WeightedScoringParams {
   preferredResolution?: string;

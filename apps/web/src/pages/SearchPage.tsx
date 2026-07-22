@@ -1,3 +1,5 @@
+// Filtrage par tags 100% backend : chaque (dé)sélection relance /metadata/search
+// avec ?tags=... ; aucun filter côté client (filterMetadataCandidates côté API).
 import { useCallback, useMemo, useState } from 'react';
 import { searchAnimes } from '../api/anime';
 import { createSubscription } from '../api/subscriptions';
@@ -14,24 +16,15 @@ const STATUS_LABELS: Record<string, string> = {
 const PLACEHOLDER =
   'data:image/svg+xml,' +
   encodeURIComponent(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="230" height="345"><rect width="100%" height="100%" fill="#2a2a3a"/><text x="50%" y="50%" fill="#777" font-size="14" text-anchor="middle">No image</text></svg>`,
+    `<svg xmlns="http://www.w3.org/2000/svg" width="230" height="345"><rect width="100%" height="100%" fill="#1e2330"/><text x="50%" y="50%" fill="#777" font-size="14" text-anchor="middle">No image</text></svg>`,
   );
 
 type ApiErrorLike = {
-  response?: {
-    status?: number;
-    data?: {
-      message?: string;
-    };
-  };
+  response?: { status?: number; data?: { message?: string } };
 };
 
 function isApiError(value: unknown): value is ApiErrorLike {
   return typeof value === 'object' && value !== null && 'response' in value;
-}
-
-function statusBadgeClass(status?: string): string {
-  return status === 'RELEASING' ? 'badge-active' : 'badge-inactive';
 }
 
 export function SearchPage() {
@@ -52,7 +45,7 @@ export function SearchPage() {
     window.setTimeout(() => setToast(null), 3000);
   };
 
-  const doSearch = useCallback(async (q: string, p: number) => {
+  const doSearch = useCallback(async (q: string, p: number, tags: Set<string>) => {
     const normalizedQuery = q.trim();
     if (normalizedQuery.length < 2) {
       setHasSearched(false);
@@ -65,13 +58,11 @@ export function SearchPage() {
     setError(null);
 
     try {
-      const res = await searchAnimes(normalizedQuery, p, 20);
+      const res = await searchAnimes(normalizedQuery, p, 20, [...tags], 'all');
       const rows = Array.isArray(res?.data) ? res.data : [];
-
       setResults(rows);
       setPageInfo(res?.pageInfo ?? null);
       setHasSearched(true);
-      setSelectedTags(new Set());
     } catch {
       setError('Erreur lors de la recherche AniList.');
       setResults([]);
@@ -84,17 +75,30 @@ export function SearchPage() {
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    void doSearch(query, 1);
+    setSelectedTags(new Set());
+    void doSearch(query, 1, new Set());
   };
 
   const goToPage = (p: number) => {
-    void doSearch(query, p);
+    void doSearch(query, p, selectedTags);
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const toggleTag = (tag: string) => {
+    const next = new Set(selectedTags);
+    if (next.has(tag)) next.delete(tag);
+    else next.add(tag);
+    setSelectedTags(next);
+    void doSearch(query, 1, next);
+  };
+
+  const clearTags = () => {
+    setSelectedTags(new Set());
+    void doSearch(query, 1, new Set());
   };
 
   const handleSubscribe = async (serie: Serie) => {
     setSubscribingId(serie.anilistId);
-
     try {
       await createSubscription({
         anilistId: serie.anilistId,
@@ -102,7 +106,6 @@ export function SearchPage() {
         preferredResolution: '1080p',
         minSeeders: 1,
       });
-
       setSubscribedAnilistIds((prev) => new Set(prev).add(serie.anilistId));
       showToast(`Abonné à « ${serie.canonicalTitle} »`, true);
     } catch (err) {
@@ -111,7 +114,6 @@ export function SearchPage() {
         showToast('Déjà abonné à cet animé', false);
         return;
       }
-
       const message = isApiError(err) ? err.response?.data?.message : undefined;
       showToast(message ?? "Erreur lors de l'abonnement", false);
     } finally {
@@ -131,142 +133,139 @@ export function SearchPage() {
     return [...names].sort();
   }, [safeResults]);
 
-  const filteredResults = useMemo(() => {
-    if (selectedTags.size === 0) return safeResults;
-    return safeResults.filter((serie) => {
-      const serieTagNames = new Set((serie.tags ?? []).map((t) => t.name));
-      return [...selectedTags].every((tag) => serieTagNames.has(tag));
-    });
-  }, [safeResults, selectedTags]);
-
-  const toggleTag = (tag: string) => {
-    setSelectedTags((prev) => {
-      const next = new Set(prev);
-      if (next.has(tag)) next.delete(tag);
-      else next.add(tag);
-      return next;
-    });
-  };
-
   return (
-    <main className="page search-page">
-      <h1>Recherche AniList</h1>
+    <main className="mx-auto max-w-5xl px-6 py-9">
+      <h1 className="mb-5 text-2xl font-bold tracking-tight text-white">Recherche AniList</h1>
 
-      <form className="search-bar" onSubmit={handleSubmit}>
+      <form className="mb-5 flex gap-2" onSubmit={handleSubmit}>
         <input
-          className="input"
+          className="flex-1 rounded-lg border border-white/10 bg-surface px-3 py-2 text-sm text-slate-200 outline-none focus-visible:ring-2 focus-visible:ring-accent"
           type="text"
           placeholder="Ex : Frieren, Solo Leveling, One Piece…"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
-        <button className="btn-primary" type="submit" disabled={loading || query.trim().length < 2}>
+        <button
+          className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-40"
+          type="submit"
+          disabled={loading || query.trim().length < 2}
+        >
           {loading ? '…' : 'Rechercher'}
         </button>
       </form>
 
-      {error && <p className="error-text center">{error}</p>}
-      {loading && <p className="muted center">Chargement…</p>}
+      {error && <p className="py-6 text-center text-red-400">{error}</p>}
+      {loading && <p className="py-6 text-center text-slate-400">Chargement…</p>}
 
       {!loading && availableTags.length > 0 && (
-        <div className="tag-filter-bar">
+        <div className="mb-5 flex flex-wrap items-center gap-1.5">
           {availableTags.map((tag) => (
             <button
               key={tag}
               type="button"
-              className={`genre-tag tag-filter-chip ${selectedTags.has(tag) ? 'tag-filter-chip-active' : ''}`}
               onClick={() => toggleTag(tag)}
+              className={`rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${selectedTags.has(tag) ? 'bg-accent text-white' : 'bg-surface-2 text-slate-400 hover:text-white'
+                }`}
             >
               {tag}
             </button>
           ))}
           {selectedTags.size > 0 && (
-            <button type="button" className="btn-ghost" onClick={() => setSelectedTags(new Set())}>
+            <button
+              type="button"
+              className="ml-1 text-xs font-medium text-slate-400 underline hover:text-white"
+              onClick={clearTags}
+            >
               Effacer les filtres
             </button>
           )}
         </div>
       )}
 
-      {!loading && filteredResults.length > 0 && (
-        <div className="search-grid">
-          {filteredResults.map((serie) => {
+      {!loading && safeResults.length > 0 && (
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(190px,1fr))] gap-3.5">
+          {safeResults.map((serie) => {
             const isSubscribed = subscribedAnilistIds.has(serie.anilistId);
             const isSubscribing = subscribingId === serie.anilistId;
-            const displayedEpisodes = serie.episodeCount ?? null;
             const genres = Array.isArray(serie.genres) ? serie.genres : [];
+            const visibleTags = (serie.tags ?? []).filter((t) => !t.isAdult);
 
             return (
-              <article key={serie.anilistId} className="anime-card">
+              <article
+                key={serie.anilistId}
+                className="flex flex-col overflow-hidden rounded-xl border border-white/10 bg-surface transition-colors hover:border-white/20"
+              >
                 <img
-                  className="anime-cover"
                   src={serie.coverImage || PLACEHOLDER}
                   alt={serie.canonicalTitle}
                   loading="lazy"
+                  className="aspect-[2/3] w-full bg-surface-2 object-cover"
                 />
-
-                <div className="anime-body">
-                  <h3 className="anime-title" title={serie.canonicalTitle}>
+                <div className="flex flex-1 flex-col gap-2 p-3">
+                  <h3 className="line-clamp-2 text-sm font-semibold text-white" title={serie.canonicalTitle}>
                     {serie.canonicalTitle}
                   </h3>
 
-                  <div className="anime-badges">
+                  <div className="flex flex-wrap gap-1.5">
                     {serie.status && (
-                      <span className={`badge ${statusBadgeClass(serie.status)}`}>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-xs font-mono ${serie.status === 'RELEASING'
+                            ? 'bg-emerald-400/15 text-emerald-400'
+                            : 'bg-surface-2 text-slate-400'
+                          }`}
+                      >
                         {STATUS_LABELS[serie.status] ?? serie.status}
                       </span>
                     )}
-
-                    {serie.format && <span className="badge badge-inactive">{serie.format}</span>}
+                    {serie.format && (
+                      <span className="rounded-full bg-surface-2 px-2 py-0.5 text-xs font-mono text-slate-400">
+                        {serie.format}
+                      </span>
+                    )}
                   </div>
 
-                  <p className="anime-meta">
-                    {displayedEpisodes ? `${displayedEpisodes} ép.` : 'Ép. inconnu'} · AniList #{serie.anilistId}
+                  <p className="font-mono text-xs text-slate-400">
+                    {serie.episodeCount ? `${serie.episodeCount} ép.` : 'Ép. inconnu'} · #{serie.anilistId}
                   </p>
 
                   {genres.length > 0 && (
-                    <div className="anime-genres">
+                    <div className="flex flex-wrap gap-1">
                       {genres.slice(0, 3).map((genre) => (
-                        <span key={genre} className="genre-tag">
+                        <span key={genre} className="rounded-full bg-surface-2 px-2 py-0.5 text-xs text-slate-400">
                           {genre}
                         </span>
                       ))}
-                      {genres.length > 3 && <span className="genre-tag">+{genres.length - 3}</span>}
                     </div>
                   )}
 
-                  {(serie.tags ?? []).filter((t) => !t.isAdult).length > 0 && (
-                    <div className="anime-genres">
-                      {(serie.tags ?? [])
-                        .filter((t) => !t.isAdult)
-                        .slice(0, 4)
-                        .map((tag) => (
-                          <span key={tag.id} className="genre-tag tag-chip">
-                            {tag.name}
-                          </span>
-                        ))}
+                  {visibleTags.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {visibleTags.slice(0, 4).map((tag) => (
+                        <span key={tag.id} className="rounded-full bg-accent/15 px-2 py-0.5 text-xs text-accent">
+                          {tag.name}
+                        </span>
+                      ))}
                     </div>
                   )}
-                </div>
 
-                <div className="anime-actions">
-                  <button
-                    className="btn-primary btn-sub"
-                    type="button"
-                    disabled={isSubscribed || isSubscribing}
-                    onClick={() => void handleSubscribe(serie)}
-                  >
-                    {isSubscribing ? '…' : isSubscribed ? '✓ Abonné' : "+ S'abonner"}
-                  </button>
-
-                  <button
-                    className="btn-ghost btn-detail"
-                    type="button"
-                    onClick={() => setDetailSerie(serie)}
-                    aria-label={`Voir les détails de ${serie.canonicalTitle}`}
-                  >
-                    ℹ️
-                  </button>
+                  <div className="mt-auto flex gap-1.5 pt-1.5">
+                    <button
+                      type="button"
+                      className="flex-1 rounded-md bg-accent px-2.5 py-1.5 text-xs font-medium text-white hover:bg-accent-hover disabled:opacity-40"
+                      disabled={isSubscribed || isSubscribing}
+                      onClick={() => void handleSubscribe(serie)}
+                    >
+                      {isSubscribing ? '…' : isSubscribed ? '✓ Abonné' : "+ S'abonner"}
+                    </button>
+                    <button
+                      type="button"
+                      className="shrink-0 rounded-md border border-white/10 px-2.5 py-1.5 text-xs text-slate-300 hover:border-accent hover:text-accent"
+                      onClick={() => setDetailSerie(serie)}
+                      aria-label={`Voir les détails de ${serie.canonicalTitle}`}
+                    >
+                      Détails
+                    </button>
+                  </div>
                 </div>
               </article>
             );
@@ -275,33 +274,26 @@ export function SearchPage() {
       )}
 
       {!loading && hasSearched && safeResults.length === 0 && !error && (
-        <div className="empty-state">Aucun résultat pour « {query.trim()} ».</div>
+        <p className="py-14 text-center text-slate-400">Aucun résultat pour « {query.trim()} ».</p>
       )}
-
-      {!loading && hasSearched && safeResults.length > 0 && filteredResults.length === 0 && (
-        <div className="empty-state">Aucun résultat ne correspond aux tags sélectionnés.</div>
+      {!hasSearched && !loading && (
+        <p className="py-14 text-center text-slate-400">Tape un titre d'animé pour lancer la recherche.</p>
       )}
-
-      {!hasSearched && !loading && <div className="empty-state">Tape un titre d'animé pour lancer la recherche.</div>}
 
       {pageInfo && pageInfo.lastPage > 1 && (
-        <div className="pagination">
+        <div className="mt-6 flex items-center justify-center gap-3">
           <button
-            className="page-btn"
-            type="button"
+            className="rounded-md border border-white/10 px-3 py-1.5 text-sm text-slate-200 hover:border-accent disabled:opacity-40"
             disabled={pageInfo.currentPage <= 1 || loading}
             onClick={() => goToPage(pageInfo.currentPage - 1)}
           >
             ← Précédent
           </button>
-
-          <span className="page-info">
+          <span className="font-mono text-xs text-slate-400">
             Page {pageInfo.currentPage} / {pageInfo.lastPage} ({pageInfo.total} résultats)
           </span>
-
           <button
-            className="page-btn"
-            type="button"
+            className="rounded-md border border-white/10 px-3 py-1.5 text-sm text-slate-200 hover:border-accent disabled:opacity-40"
             disabled={!pageInfo.hasNextPage || loading}
             onClick={() => goToPage(pageInfo.currentPage + 1)}
           >
@@ -311,52 +303,56 @@ export function SearchPage() {
       )}
 
       {detailSerie && (
-        <div className="modal-overlay" onClick={() => setDetailSerie(null)}>
-          <div className="modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
-            <h2 className="modal-title">{detailSerie.canonicalTitle}</h2>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-5 backdrop-blur-sm"
+          onClick={() => setDetailSerie(null)}
+        >
+          <div
+            className="flex max-h-[85vh] w-full max-w-md flex-col gap-3 overflow-y-auto rounded-2xl border border-white/10 bg-surface p-6"
+            role="dialog"
+            aria-modal="true"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-lg font-semibold text-white">{detailSerie.canonicalTitle}</h2>
 
-            <div className="modal-row">
-              <span className="modal-label">AniList ID</span>
-              <span>#{detailSerie.anilistId}</span>
-            </div>
-
-            <div className="modal-row">
-              <span className="modal-label">Statut</span>
-              <span>{STATUS_LABELS[detailSerie.status ?? ''] ?? detailSerie.status ?? '—'}</span>
-            </div>
-
-            <div className="modal-row">
-              <span className="modal-label">Format</span>
-              <span>{detailSerie.format ?? '—'}</span>
-            </div>
-
-            <div className="modal-row">
-              <span className="modal-label">Épisodes</span>
-              <span>{detailSerie.episodeCount ?? '—'}</span>
-            </div>
-
-            <div className="modal-row">
-              <span className="modal-label">Genres</span>
-              <span>{Array.isArray(detailSerie.genres) && detailSerie.genres.length > 0 ? detailSerie.genres.join(', ') : '—'}</span>
-            </div>
-
-            <div className="modal-row">
-              <span className="modal-label">Tags</span>
-              <span>
-                {(detailSerie.tags ?? []).filter((t) => !t.isAdult).length > 0
+            {[
+              ['AniList ID', `#${detailSerie.anilistId}`],
+              ['Statut', STATUS_LABELS[detailSerie.status ?? ''] ?? detailSerie.status ?? '—'],
+              ['Format', detailSerie.format ?? '—'],
+              ['Épisodes', detailSerie.episodeCount ?? '—'],
+              ['Genres', Array.isArray(detailSerie.genres) && detailSerie.genres.length > 0 ? detailSerie.genres.join(', ') : '—'],
+              [
+                'Tags',
+                (detailSerie.tags ?? []).filter((t) => !t.isAdult).length > 0
                   ? (detailSerie.tags ?? []).filter((t) => !t.isAdult).map((t) => t.name).join(', ')
-                  : '—'}
-              </span>
-            </div>
+                  : '—',
+              ],
+            ].map(([label, value]) => (
+              <div key={label} className="flex justify-between gap-3 text-sm">
+                <span className="text-slate-400">{label}</span>
+                <span className="text-right text-slate-200">{value}</span>
+              </div>
+            ))}
 
-            <button className="btn-primary modal-close" type="button" onClick={() => setDetailSerie(null)}>
+            <button
+              className="mt-2 self-end rounded-md bg-accent px-4 py-1.5 text-sm font-medium text-white hover:bg-accent-hover"
+              type="button"
+              onClick={() => setDetailSerie(null)}
+            >
               Fermer
             </button>
           </div>
         </div>
       )}
 
-      {toast && <div className={`toast ${toast.ok ? 'toast-success' : 'toast-error'}`}>{toast.msg}</div>}
+      {toast && (
+        <div
+          className={`fixed bottom-6 left-1/2 -translate-x-1/2 rounded-lg px-4 py-2.5 text-sm font-medium text-white shadow-lg ${toast.ok ? 'bg-emerald-500' : 'bg-red-500'
+            }`}
+        >
+          {toast.msg}
+        </div>
+      )}
     </main>
   );
 }
